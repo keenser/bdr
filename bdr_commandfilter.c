@@ -180,7 +180,8 @@ filter_CreateStmt(Node *parsetree,
 static void
 filter_AlterTableStmt(Node *parsetree,
 					  char *completionTag,
-					  const char *queryString)
+					  const char *queryString,
+					  BDRLockType *lock_type)
 {
 	AlterTableStmt *astmt;
 	ListCell   *cell,
@@ -308,6 +309,7 @@ filter_AlterTableStmt(Node *parsetree,
 					break;
 
 				case AT_ValidateConstraint: /* VALIDATE CONSTRAINT */
+					*lock_type = BDR_LOCK_DDL;
 					break;
 
 				case AT_AlterConstraint:
@@ -984,7 +986,7 @@ bdr_commandfilter(Node *parsetree,
 			break;
 
 		case T_AlterTableStmt:
-			filter_AlterTableStmt(parsetree, completionTag, queryString);
+			filter_AlterTableStmt(parsetree, completionTag, queryString, &lock_type);
 			break;
 
 		case T_AlterDomainStmt:
