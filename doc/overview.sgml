@@ -1,28 +1,24 @@
 <chapter id="overview" xreflabel="Overview">
- <title>&bdr; overview</title>
+ <title>BDR overview</title>
 
  <para>
-  The &bdr; (Bi-Directional Replication) project adds multi-master replication
-  to PostgreSQL 9.4. This chapter explains what BDR is, how it works, and where
+  The BDR (Bi-Directional Replication) project adds multi-master replication
+  to PostgreSQL. This chapter explains what BDR is, how it works, and where
   to best apply it. See <xref linkend="bdr-concepts"> to learn about
-  what &bdr; does and how it does it.
- </para>
-
- <para>
-  Because &bdr; requires a modified PostgreSQL 9.4.
+  what BDR does and how it does it.
  </para>
 
  <sect1 id="bdr-concepts" xreflabel="Concepts">
   <title>Concepts</title>
 
   <para>
-   &bdr; provides asynchronous multi-master logical replication. This means
-   that you can write to any server and the changes will, after they have been
-   committed, be sent row-by-row to all the other servers that are part of the
-   same BDR group<footnote><simpara>We'd say "cluster", but PostgreSQL has
-   historically used that term for a different and confusing purpose, to mean a
-   particular PostgreSQL instance's collection of
-   databases.</simpara></footnote>.
+   BDR provides loosely-coupled asynchronous multi-master logical replication
+   with mesh topology. This means that you can write to any server and the
+   changes will, after they have been committed, be sent row-by-row to all the
+   other servers that are part of the same BDR group<footnote><simpara>We'd say
+   "cluster", but PostgreSQL has historically used that term for a different
+   and confusing purpose, to mean a particular PostgreSQL instance's collection
+   of databases.</simpara></footnote>.
   </para>
 
   <para>
@@ -33,23 +29,26 @@
      <term>Multi-master</term>
      <listitem>
       <simpara>
-       Each database ("node") participating in a &bdr; group both receives
+       Each database ("node") participating in a BDR group both receives
        changes from other members and can be written to directly by the user.
        This is distinct from hot or warm standby, where only the single master
        server that all others replicate from can be written to.
       </simpara>
 
       <simpara>
-       You don't have to use multi-master with &bdr;, it's possible to use it
-       for one-way replication too.
+       You don't have to write to all the masters, it's possible to leave
+       all nodes except one read-only, or just direct writes to only one
+       master. However, if you just want one-way replication look into <ulink
+       url="http://2ndquadrant.com/pglogical">pglogical</>, which
+       is more flexible.
       </simpara>
 
       <simpara>
-       If you're interested in &bdr;'s multi-master features it's important to
+       If you're interested in BDR's multi-master features it's important to
        understand some of the concepts behind multi-master, both in general and
-       as &bdr; implements it.  Application developers
+       as BDR implements it.  Application developers
        <emphasis>must</emphasis> be aware that applications may need changes
-       for multi-master &bdr; and cannot be written exactly as if they are
+       for multi-master BDR and cannot be written exactly as if they are
        talking to a standalone or single-master system. See <xref
        linkend="weak-coupled-multimaster">.
       </simpara>
@@ -61,7 +60,7 @@
      <term>asynchronous</term>
      <listitem>
       <simpara>
-       Changes made on one &bdr; node are not replicated to other nodes before
+       Changes made on one BDR node are not replicated to other nodes before
        they are committed locally. As a result the data is not exactly the
        same on all nodes at any given time; some nodes will have data that
        has not yet arrived at other nodes. PostgreSQL's block-based replication
@@ -69,9 +68,11 @@
       </simpara>
 
       <simpara>
-       Support for synchronous writes may be added to a future &bdr; release
+       Support for synchronous writes may be added to a future BDR release
        and some support for synchronous replication already exists for
-       one-way (single-master) replication.
+       one-way (single-master) replication. (Note that even if synchronous
+       replication is enabled, conflicts are still possible since no locking is
+       performed.)
       </simpara>
 
       <simpara>
@@ -79,10 +80,28 @@
        called an "eventually consistent" architecture. At any given time
        the data can look different when viewed from different nodes, but
        over time the nodes sync with each other. If writes stop then after
-       a while all nodes will be the same. &bdr; ensures that
-       constraints (unique constraints, check constraints, foreign keys, etc)
-       are always consistent within any given node, so it's stricter
-       than many eventually consistent designs.
+       a while all nodes will be the same. In BDR this means that
+       <emphasis>foreign key constraints may be temporarily violated</>
+       as data replicates from multiple nodes.
+      </simpara>
+
+     </listitem>
+    </varlistentry>
+
+    <varlistentry>
+     <term>loosely-coupled</term>
+     <listitem>
+      <simpara>
+       Nodes in BDR are loosely-coupled because there is not much inter-node
+       co-ordination traffic. There is no global transaction manager, no global
+       lock manager, etc. Locks are node-local and there's no inter-node row
+       or relation locking; the only inter-node locking is done for
+       <link linkend="ddl-replication">schema changes</>.
+      </simpara>
+      <simpara>
+       This means nodes run more independently and are highly tolerant of
+       network interruptions and partitions. But it also means that <link
+       linkend="weak-coupled-multimaster">replication conflicts</> may occur.
       </simpara>
      </listitem>
     </varlistentry>
@@ -98,6 +117,12 @@
        the files are on. Logical replication has both advantages and disadvantages
        compared to physical replication; see <xref linkend="logical-vs-physical">.
       </simpara>
+      <simpara>
+       The logical replication performed by BDR is low-level and requires that each
+       table have exactly the same structure down to details like dropped columns.
+       If you need a more flexible model for continuous ETL, OLAP data collection
+       etc, look at <ulink url="http://2ndquadrant.com/pglogical">pglogical</>.
+      </simpara>
      </listitem>
     </varlistentry>
 
@@ -106,7 +131,7 @@
      <listitem>
       <simpara>
        Replication is the process of copying data from one place to another. In
-       &bdr; refers to the fact that &bdr; is not a shared-storage architecture;
+       BDR refers to the fact that BDR is not a shared-storage architecture;
        each node has its own copy of the database, including all relevant
        indexes etc. Nodes can satisfy queries without needing to communicate
        with other nodes, but must also have enough storage space to hold all the
@@ -115,19 +140,30 @@
      </listitem>
     </varlistentry>
 
+    <varlistentry>
+     <term>mesh topology</>
+     <listitem>
+      <simpara>
+       BDR is structured around a <link linkend="technotes-mesh">mesh network</>
+       where every node connects to every other node and all nodes exchange data
+       directly with each other. There is no forwarding.
+      </simpara>
+     </listitem>
+    </varlistentry>
+
    </variablelist>
   </para>
 
   <para>
-   &bdr; is built on the <ulink url="http://www.postgresql.org/docs/current/static/logicaldecoding.html">
-   logical decoding</ulink> features developed by the &bdr; project and added
-   to PostgreSQL 9.4. It also relies on other core PostgreSQL features that
-   were added with &bdr; in mind, like background workers.
+   BDR is built on the <ulink url="http://www.postgresql.org/docs/current/static/logicaldecoding.html">
+   logical decoding</ulink> features developed by the BDR project and added
+   to PostgreSQL. It also relies on other core PostgreSQL features that
+   were added with BDR in mind, like background workers.
   </para>
 
   <para>
-   Because &bdr; needs some features that didn't make it into PostgreSQL by the
-   time 9.4 was released, it needs a modified PostgreSQL to run. See <xref
+   Because BDR needed some features that didn't make it into the PostgreSQL 9.4
+   release, it needs a modified PostgreSQL 9.4 to run. See <xref
    linkend="install-requirements">.
   </para>
 
@@ -138,8 +174,8 @@
   <title>Differences between logical (row level) and physical (block level) replication</title>
 
   <para>
-   &bdr; uses
-   <ulink url="http://www.postgresql.org/docs/current/static/logicaldecoding.html">&postgres;'s logical decoding feature</ulink>
+   BDR uses
+   <ulink url="http://www.postgresql.org/docs/current/static/logicaldecoding.html">PostgreSQL's logical decoding feature</ulink>
    to implement a low overhead logical replication solution. It has significant
    advantages - and some disadvantages - when compared to PostgreSQL's older
    physical (block-based)
@@ -161,7 +197,7 @@
   </para>
 
   <para>
-   The major differences between physical replication and logical replication as implemented by &bdr; are:
+   The major differences between physical replication and logical replication as implemented by BDR are:
    <itemizedlist>
     <listitem>
      <simpara>Multi-master replication is possible. All members are writable nodes that replicate changes.</simpara>
@@ -176,22 +212,22 @@
      <simpara>Temporary tables may be used on replicas.</simpara>
     </listitem>
     <listitem>
-     <simpara>Tables that aren't being replicated from elsewhere may be written to &bdr;.</simpara>
+     <simpara>Tables that aren't being replicated from elsewhere may be written to BDR.</simpara>
     </listitem>
     <listitem>
-     <simpara>Replication across major versions (e.g. 9.4 to 9.5) is supported.</simpara>
+     <simpara>Replication across major versions (e.g. 9.4 to 9.5) can be supported (though BDR imposes limitations on that, <ulink url="http://2ndquadrant.com/pglogical">pglogical</> supports it well).</simpara>
     </listitem>
     <listitem>
      <simpara>Replication across architectures and OSes (e.g. PPC64 Linux to x86_64 OS X) is supported.</simpara>
     </listitem>
     <listitem>
-     <simpara>Replication is per-database (or finer grained), whereas physical replication can and must replicate all databases.</simpara>
+     <simpara>Replication is per-database (or even table-level), whereas physical replication can and must replicate all databases. (<ulink url="http://2ndquadrant.com/pglogical">pglogical</> even supports row- and column-level filtering of replication).</simpara>
     </listitem>
     <listitem>
-     <simpara>&bdr;'s logical replication implementation imposes some restrictions on supported DDL (see: <xref linkend="ddl-replication">) that do not apply for physical replication</simpara>
+     <simpara>BDR's logical replication implementation imposes some restrictions on supported DDL (see: <xref linkend="ddl-replication">) that do not apply for physical replication</simpara>
     </listitem>
     <listitem>
-     <simpara>Commands that affect all databases, like <literal>ALTER SYSTEM</literal> or <literal>CREATE ROLE</literal> are <emphasis>not</emphasis> replicated by &bdr; and must be managed by the administrator.</simpara>
+     <simpara>Because it's database-level not cluster-level, commands that affect all databases, like <literal>ALTER SYSTEM</literal> or <literal>CREATE ROLE</literal> are <emphasis>not</emphasis> replicated by BDR and must be managed by the administrator.</simpara>
     </listitem>
     <listitem>
      <simpara>Disk random I/O requirements and flush frequency may be higher than for physical replication.</simpara>
@@ -203,7 +239,7 @@
      <simpara>Logical replication requires at least PostgreSQL 9.4.</simpara>
     </listitem>
     <listitem>
-     <simpara>Logical replication cannot be used for point-in-time recovery (though it can support a replication delay).</simpara>
+     <simpara>Logical replication cannot be used for point-in-time recovery (though it can support a replication delay). It's technically possible to add this capability if someone needs it, though.</simpara>
     </listitem>
     <listitem>
      <simpara>Logical replication only works via streaming, not WAL file archiving, and requires the use of a <ulink url="http://www.postgresql.org/docs/current/static/logicaldecoding-explanation.html">replication slot</ulink>.</simpara>
@@ -244,7 +280,7 @@
   <para>
    Temporary tables may always be created on all nodes, even if they are also
    receiving replicated data. There's no prohibition against doing so like it
-   exists for &postgres;'s block-level replication features.
+   exists for PostgreSQL's block-level replication features.
   </para>
 
   <para>
@@ -252,7 +288,7 @@
    <literal>UNLOGGED</literal> tables may be created even on nodes that are
    receiving changes from upstream/peer nodes. Additionally, replication sets
    allow changes to only a subset of tables to be replicated if desired, so some
-   normal tables may be excluded from replication.  This makes &bdr; very
+   normal tables may be excluded from replication.  This makes BDR very
    useful for use cases where significant work is done on nodes that also
    receive replicated data from elsewhere.
   </para>
@@ -277,7 +313,7 @@
  </sect1>
 
  <sect1 id="bdr-vs-trigger-based" xreflabel="Differences between BDR and trigger-based replication">
-  <title>Differences between &bdr; and trigger-based replication</title>
+  <title>Differences between BDR and trigger-based replication</title>
 
   <para>
    There are a number of trigger-based logical replication solutions for
@@ -285,12 +321,12 @@
    <ulink url="https://wiki.postgresql.org/wiki/SkyTools">Londiste</ulink>,
    <ulink url="http://slony.info/">Slony-I</ulink> and
    <ulink url="https://bucardo.org/">Bucardo</ulink>. They're mature, fairly
-   widely used and powerful, and like &bdr; they have the advantages (and
+   widely used and powerful, and like BDR they have the advantages (and
    disadvantages) of logical replication.
   </para>
 
   <para>
-   As with the comparison with physical replication, &bdr; offers advantages
+   As with the comparison with physical replication, BDR offers advantages
    over trigger-based replication solutions but also has some downsides.
   </para>
 
@@ -300,25 +336,25 @@
    corresponding write to a replication log table. Both the original write and
    the write to the replication log get recorded in WAL as well as the heap, so
    each write actually happens four times. By reading and processing WAL
-   for data to replicate &bdr; avoids this write amplification, so writes
-   to a &bdr;-replicated database only get written twice - like any other
+   for data to replicate BDR avoids this write amplification, so writes
+   to a BDR-replicated database only get written twice - like any other
    durable write on PostgreSQL.
   </para>
 
   <para>
    Trigger-based replication also requires an external d&aelig;mon process on
-   the sending and/or receiving side. &bdr; runs its management processes
+   the sending and/or receiving side. BDR runs its management processes
    inside PostgreSQL itself, so there's no separate replication process
    to manage.
   </para>
 
   <para>
    At the time of writing, systems like Londiste have a number of features for
-   which &bdr; has no corresponding capability. Londiste can synchronise and
+   which BDR has no corresponding capability. Londiste can synchronise and
    compare tables between the publisher and subscriber. Slony-I supports
    events and confirmations. Slony-I provides infrastructure for handling
    DDL while also running on unmodified PostgreSQL 9.4. Bucardo supports
-   multi-master on unmodified PostgreSQL 9.4. So while &bdr; offers some
+   multi-master on unmodified PostgreSQL 9.4. So while BDR offers some
    significant benefits it won't suit every need and every workload. Evaluate
    your needs carefully before choosing a technology.
   </para>
@@ -330,21 +366,26 @@
   <title>BDR: Weakly coupled multi-master replication</title>
 
   <para>
-   When considering multi-master clustering or replication (with &bdr;
+   When considering multi-master clustering or replication (with BDR
    or another technology) it is important to understand what's involved,
    and that not all multi-master systems are equal.
   </para>
 
   <note>
    <para>
-    You don't have to use &bdr; for multi-master. It's quite reasonable
-    to write to only one node, using &bdr; like an improved read-replica
+    You don't have to use BDR for multi-master. It's quite reasonable
+    to write to only one node, using BDR like an improved read-replica
     system. It's also possible to make sure that any given table/schema
     is only written to on one particular node, so no conflicts can arise.
     You still have to consider replication lag, but no more or less than with
     normal hot standbys. It only gets complicated when your application writes
     to the same tables on multiple nodes at once. If you need to do that,
     keep reading.
+   </para>
+   <para>
+    BDR supports marking nodes as read-only to make this easier, and nodes
+    can be set up in synchronous pairs to reduce (but not eliminate) conflicts
+    on failover.
    </para>
   </note>
 
@@ -380,19 +421,19 @@
   </para>
 
   <para>
-   &bdr; is a loosely coupled shared-nothing multi-master design.
+   BDR is a loosely coupled shared-nothing multi-master design.
   </para>
 
   <para>
    This is a broad and overly simplified characterisation of replication, but
-   it's enough to explain why applications that use &bdr; for multi-master
+   it's enough to explain why applications that use BDR for multi-master
    writes need to be aware of the anomalies that can be introduced by
    asynchronous multi-master replication. It should also help illustrate
    that applications get some significant benefits in exchange:
    <itemizedlist>
     <listitem>
      <simpara>
-      Applications using &bdr; are free to write to any node so long as they
+      Applications using BDR are free to write to any node so long as they
       are careful to prevent or cope with conflicts.
      </simpara>
     </listitem>
@@ -427,18 +468,18 @@
   </para>
 
   <para>
-   Because &bdr; replicates asynchronously, not all nodes have the same view of
+   Because BDR replicates asynchronously, not all nodes have the same view of
    the data at any given instant. On a single node it is guaranteed that
    committed transactions' changes become visible immediately to newly started
    transactions (or in <literal>READ COMMITTED</literal> mode, statements).
-   This isn't true in &bdr; - if you <literal>COMMIT</literal> a transaction
+   This isn't true in BDR - if you <literal>COMMIT</literal> a transaction
    that changes a row on one node, then <literal>SELECT</literal> that row on
    another node, you may well still get the old value. Applications must
    therefore be designed to be tolerant of stale data or to be "sticky" to a
    node, where they prefer read data from the same node they write it to.
    This is also true of applications using PostgreSQL's physical replication
    feature unless it is used in synchronous mode with only one replica, so
-   it's a challenge that's far from unique to &bdr;.
+   it's a challenge that's far from unique to BDR.
   </para>
 
   <para>
@@ -459,7 +500,7 @@
    it is possible for transactions on different nodes to perform actions
    that could not happen if both transactions ran on a single node.
    These are called <emphasis>conflicts</emphasis> and are discussed in detail
-   separately; see <xref linkend="conflicts">. &bdr; can resolve
+   separately; see <xref linkend="conflicts">. BDR can resolve
    conflicts using a simple last-update-wins strategy or using user-defined
    conflict handlers. Either way the application design needs to consider
    that conflicts may occur, and where possible minimise them. Na&iuml;ive
@@ -469,9 +510,9 @@
   </para>
 
   <para>
-   &bdr; provides some tools to help make application design easier.  The most
+   BDR provides some tools to help make application design easier.  The most
    important is <xref linkend="global-sequences">, which provide a
-   &bdr;-group-wide generator of unique values for use in synthetic keys.
+   BDR-group-wide generator of unique values for use in synthetic keys.
    Others are discussed in the <xref linkend="conflicts"> section.
   </para>
 

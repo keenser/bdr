@@ -6,6 +6,10 @@
   requirements is carried in this appendix.
  </para>
 
+ <para>
+  These sections will be best understood in the context of the <xref linkend="overview">.
+ </para>
+
  <sect1 id="technotes-mesh" xreflabel="BDR mesh network">
   <title>BDR network structure</>
 
