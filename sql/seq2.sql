@@ -4,7 +4,9 @@ SELECT datname, node_seq_id
 FROM bdr.bdr_nodes
 INNER JOIN pg_database ON (node_dboid = pg_database.oid);
 
-CREATE SEQUENCE dummy_seq;
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE SEQUENCE public.dummy_seq;
+$DDL$);
 
 -- Generate enough values to wrap around the sequence bits twice.
 -- If a machine can generate 16k sequence values per second it could
@@ -25,9 +27,13 @@ UNION ALL
 SELECT count(distinct VAL), 'ndistinct'
 FROM vals;
 
-CREATE SEQUENCE dummy_seq2;
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE SEQUENCE public.dummy_seq2;
+$DDL$);
 
-CREATE TABLE seqvalues (id bigint);
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE TABLE public.seqvalues (id bigint);
+$DDL$);
 
 SELECT node_seq_id FROM bdr.bdr_nodes
 WHERE (node_sysid, node_timeline, node_dboid) = bdr.bdr_get_local_nodeid();
@@ -38,7 +44,9 @@ INSERT INTO seqvalues(id)
 SELECT bdr.global_seq_nextval_test('dummy_seq2'::regclass, '530605914245317'::bigint)
 FROM generate_series(0, (2 ^ 14)::bigint - 2);
 
-CREATE UNIQUE INDEX ON seqvalues(id);
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE UNIQUE INDEX ON public.seqvalues(id);
+$DDL$);
 
 -- This should wrap around and fail. Since we're always running on the same
 -- node with the same nodeid, and starting at the same initial sequence value,

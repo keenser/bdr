@@ -3,8 +3,13 @@
 -- Create a funnily named table and sequence for use during node
 -- part testing.
 
+SELECT bdr.bdr_replicate_ddl_command($DDL$
 CREATE SCHEMA "some $SCHEMA";
+$DDL$);
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$
 CREATE TABLE "some $SCHEMA"."table table table" ("a column" integer);
+$DDL$);
 
 -- Also for dependency testing, a global sequence if supported
 DO LANGUAGE plpgsql $$

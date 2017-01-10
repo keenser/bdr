@@ -565,10 +565,6 @@ extern void bdr_execute_ddl_command(char *cmdstr, char *perpetrator, char *searc
 extern void bdr_start_truncate(void);
 extern void bdr_finish_truncate(void);
 
-extern void bdr_capture_ddl(Node *parsetree, const char *queryString,
-							ProcessUtilityContext context, ParamListInfo params,
-							DestReceiver *dest, const char *completionTag);
-
 extern void bdr_locks_shmem_init(void);
 extern void bdr_locks_check_dml(void);
 

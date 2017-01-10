@@ -281,7 +281,7 @@ filter_AlterTableStmt(Node *parsetree,
 				case AT_DropCluster:	/* SET WITHOUT CLUSTER */
 				case AT_ChangeOwner:
 				case AT_SetStorage:
-					lock_type = BDR_LOCK_DDL;
+					*lock_type = BDR_LOCK_DDL;
 					break;
 
 				case AT_SetRelOptions:	/* SET (...) */
@@ -359,7 +359,7 @@ filter_AlterTableStmt(Node *parsetree,
 					 * It's safe to ALTER TABLE ... ENABLE|DISABLE TRIGGER
 					 * without blocking concurrent writes.
 					 */
-					lock_type = BDR_LOCK_DDL;
+					*lock_type = BDR_LOCK_DDL;
 					break;
 
 				case AT_EnableAlwaysTrig:
@@ -754,13 +754,10 @@ bdr_commandfilter(Node *parsetree,
 				  char *completionTag)
 {
 	bool incremented_nestlevel = false;
-	bool affects_only_nonpermanent = false;
 	bool entered_extension = false;
 
 	/* take strongest lock by default. */
 	BDRLockType	lock_type = BDR_LOCK_WRITE;
-
-	elog(DEBUG2, "processing %s: %s in statement %s", context == PROCESS_UTILITY_TOPLEVEL ? "toplevel" : "query", CreateCommandTag(parsetree), queryString);
 
 	/* don't filter in single user mode */
 	if (!IsUnderPostmaster)
@@ -783,7 +780,7 @@ bdr_commandfilter(Node *parsetree,
 	if (creating_extension)
 		goto done;
 
-	/* don't perform filtering or replication while replaying */
+	/* don't perform filtering while replaying */
 	if (replorigin_session_origin != InvalidRepOriginId)
 		goto done;
 
@@ -792,20 +789,7 @@ bdr_commandfilter(Node *parsetree,
 	 * calls might require transaction access.
 	 */
 	if (nodeTag(parsetree) == T_TransactionStmt)
-	{
-		TransactionStmt *stmt = (TransactionStmt*)parsetree;
-		if (PG_VERSION_NUM >= 90600 &&
-			context != PROCESS_UTILITY_TOPLEVEL &&
-			(stmt->kind == TRANS_STMT_COMMIT ||
-			 stmt->kind == TRANS_STMT_PREPARE ||
-			 stmt->kind == TRANS_STMT_COMMIT_PREPARED))
-		{
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("9.6BDR does not support multi-statement strings containing explicit COMMIT")));
-		}
 		goto done;
-	}
 
 	/* don't filter if this database isn't using bdr */
 	if (!bdr_is_bdr_activated_db(MyDatabaseId))
@@ -843,7 +827,7 @@ bdr_commandfilter(Node *parsetree,
 		case T_ClusterStmt:
 			goto done;
 
-		/* We replicate the results of a DO block, not the block its self */
+		/* We'll replicate the results of a DO block, not the block its self */
 		case T_DoStmt:
 			goto done;
 
@@ -870,7 +854,7 @@ bdr_commandfilter(Node *parsetree,
 			goto done;
 
 		/* Handled by truncate triggers elsewhere */
-		case T_TruncateStmt: 
+		case T_TruncateStmt:
 			goto done;
 
 		/* We replicate the rows changed, not the statements, for these */
@@ -1231,73 +1215,24 @@ bdr_commandfilter(Node *parsetree,
 	}
 
 	/* now lock other nodes in the bdr flock against ddl */
-	affects_only_nonpermanent = statement_affects_only_nonpermanent(parsetree);
-	if (!bdr_skip_ddl_locking && !affects_only_nonpermanent && lock_type != BDR_LOCK_NOLOCK)
+	if (!bdr_skip_ddl_locking && !statement_affects_only_nonpermanent(parsetree)
+		&& lock_type != BDR_LOCK_NOLOCK)
 		bdr_acquire_ddl_lock(lock_type);
 
 	/*
-	 * On 9.6 we capture DDL straight from ProcessUtility_hook, bypassing
-	 * event triggers entirely.
-	 *
-	 * If the command rolls back so will our queue table inserts.
-	 *
-	 * If a later utility hook causes the command to be silently skipped,
-	 * it'd better do the same on the peers otherwise we'll have a mess.
-	 *
 	 * Many top level DDL statements trigger subsequent actions that also invoke
 	 * ProcessUtility_hook. We don't want to explicitly replicate these since
 	 * running the original statement on the destination will trigger them to
 	 * run there too. So we need nesting protection.
 	 *
-	 * FIXME: affects_only_nonpermanent isn't the right test here, since
-	 * 9.4bdr replicated DDL to UNLOGGED tables. We should only skip
-	 * TEMPORARY tables. However, we must make sure that what we skip is
-	 * 100% consistent so we never attempt to (say) skip a CREATE TEMPORARY
-	 * TABLE then replicate a CREATE INDEX that applies to that table.
-	 * Event triggers take care of this, but we're not using them because
-	 * of the lack of deparse.
-	 *
-	 * We don't capture DDL if we're running explicitly queued DDL via
-	 * bdr_replicate_ddl_command(), since we'd otherwise send it twice.
+	 * TODO: Capture DDL here, allowing for issues with multi-statements
+	 * (including those that mix DDL and DML, and those with transaction
+	 * control statements).
 	 */
-	if (!affects_only_nonpermanent && !bdr_skip_ddl_replication &&
+	if (!bdr_skip_ddl_replication &&
 		!bdr_in_extension && !in_bdr_replicate_ddl_command &&
 		bdr_ddl_nestlevel == 0)
 	{
-		/*
-		 * We have a big mess here, because ProcessUtility_hook gets called
-		 * once per parsetree, with the whole query string. If the query string
-		 * has multiple statements we're in a mess because we can't split them
-		 * out.  We can't accept one then reject another.
-		 *
-		 * Also if the multi-statement has explicit commit in it, we might have
-		 * already committed an OK one when we find out that the same
-		 * multi-statement string has a disallowed one later. We can't
-		 * replicate just the successful part.
-		 *
-		 * For now, disallow DDL in multi-statements entirely. We must also
-		 * disallow explicit commit in multi-statement, which is done earlier.
-		 *
-		 * To make this work we'll have to disallow commit in a
-		 * multi-statement, disallow DML mixed with DDL, and make sure to
-		 * capture each multi-statement exactly once.
-		 *
-		 * This will greatly upset applications that do multi-statement DDL
-		 * from scripts, so it's very much interim. It also breaks DDL in DO
-		 * blocks and functions even though they should be OK, because they're
-		 * not toplevel and we can't tell them apart from multi-statements.
-		 * FIXME.
-		 */
-		if (PG_VERSION_NUM >= 90600 && context != PROCESS_UTILITY_TOPLEVEL)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("DDL command attempted inside function or multi-statement string"),
-					 errdetail("9.6BDR does not support transparent DDL replication for "
-					 		   "multi-statement strings or function bodies containing DDL "
-							   "commands. Problem statement has tag [%s] in SQL string: %s",
-							   CreateCommandTag(parsetree), queryString),
-					 errhint("Use bdr.bdr_replicate_ddl_command(...) instead")));
-
 		Assert(bdr_ddl_nestlevel >= 0);
 
 		/*
@@ -1306,9 +1241,6 @@ bdr_commandfilter(Node *parsetree,
 		 * bdr_queue_ddl_commands(...) to queue the command. So we only do
 		 * actual work on 9.6 where we need to capture the DDL text.
 		 */
-		if (PG_VERSION_NUM >= 90600)
-			bdr_capture_ddl(parsetree, queryString, context, params, dest, CreateCommandTag(parsetree));
-
 		elog(DEBUG3, "DDLREP: Entering level %d DDL block. Toplevel command is %s", bdr_ddl_nestlevel, queryString);
 		incremented_nestlevel = true;
 		bdr_ddl_nestlevel ++;

@@ -82,7 +82,6 @@ DDLTESTS := \
 	ddl_grant \
 	ddl_mixed \
 	ddl_namespace \
-	ddl_read_only \
 	ddl_replication_set \
 	ddl_sequence \
 	ddl_view \
@@ -93,19 +92,20 @@ else
 OBJS += bdr_seq_stub.o
 REGRESS_COMPAT := compat96
 # Can't run ddl_sequence on 9.6
-DDLTESTS := \
-	ddl_enable_ddl \
-	ddl_create \
-	ddl_alter_table \
-	ddl_extension \
-	ddl_function \
-	ddl_grant \
-	ddl_mixed \
-	ddl_namespace \
-	ddl_read_only \
-	ddl_replication_set \
-	ddl_view \
-	ddl_disable_ddl
+# DDL disabled on 9.6 for now
+#DDLTESTS := \
+#	ddl_enable_ddl \
+#	ddl_create \
+#	ddl_alter_table \
+#	ddl_extension \
+#	ddl_function \
+#	ddl_grant \
+#	ddl_mixed \
+#	ddl_namespace \
+#	ddl_replication_set \
+#	ddl_view \
+#	ddl_disable_ddl
+
 SEQTESTS :=
 endif
 
@@ -261,6 +261,7 @@ REGRESSCHECKS= \
 	skipchanges \
 	pgreplicationslots \
 	seq2 \
+	read_only \
 	$(DDLTESTS) \
 	dml_basic \
 	dml_contrib \

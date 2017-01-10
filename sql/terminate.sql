@@ -1,7 +1,8 @@
 -- We're one instance with two databases so we should
 -- have two walsenders and two apply workers.
 
-CREATE FUNCTION wait_for_nwalsenders(nsenders integer)
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE FUNCTION public.wait_for_nwalsenders(nsenders integer)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
@@ -13,9 +14,11 @@ BEGIN
   END LOOP;
 END;
 $$;
+$DDL$);
 
 
-CREATE FUNCTION wait_for_nworkers(nsenders integer)
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE FUNCTION public.wait_for_nworkers(nsenders integer)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
@@ -27,6 +30,7 @@ BEGIN
   END LOOP;
 END;
 $$;
+$DDL$);
 
 
 SELECT wait_for_nwalsenders(2);
