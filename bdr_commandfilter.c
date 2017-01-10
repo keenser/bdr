@@ -279,13 +279,15 @@ filter_AlterTableStmt(Node *parsetree,
 
 				case AT_ClusterOn:		/* CLUSTER ON */
 				case AT_DropCluster:	/* SET WITHOUT CLUSTER */
+				case AT_ChangeOwner:
+				case AT_SetStorage:
+					lock_type = BDR_LOCK_DDL;
+					break;
 
 				case AT_SetRelOptions:	/* SET (...) */
 				case AT_ResetRelOptions:		/* RESET (...) */
 				case AT_ReplaceRelOptions:		/* replace reloption list */
 				case AT_ReplicaIdentity:
-				case AT_ChangeOwner:
-				case AT_SetStorage:
 					break;
 
 				case AT_DropConstraint:
@@ -350,13 +352,25 @@ filter_AlterTableStmt(Node *parsetree,
 					break;
 
 				case AT_EnableTrig:
-				case AT_EnableAlwaysTrig:
-				case AT_EnableReplicaTrig:
 				case AT_DisableTrig:
-				case AT_EnableTrigAll:
-				case AT_DisableTrigAll:
 				case AT_EnableTrigUser:
 				case AT_DisableTrigUser:
+					/*
+					 * It's safe to ALTER TABLE ... ENABLE|DISABLE TRIGGER
+					 * without blocking concurrent writes.
+					 */
+					lock_type = BDR_LOCK_DDL;
+					break;
+
+				case AT_EnableAlwaysTrig:
+				case AT_EnableReplicaTrig:
+				case AT_EnableTrigAll:
+				case AT_DisableTrigAll:
+					/*
+					 * Since we might fire replica triggers later and that
+					 * could affect replication, continue to take a write-lock
+					 * for them.
+					 */
 					break;
 
 				case AT_EnableRule:
