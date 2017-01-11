@@ -908,7 +908,11 @@ bdr_acquire_global_lock_sql(PG_FUNCTION_ARGS)
 {
 	char *mode = text_to_cstring(PG_GETARG_TEXT_P(0));
 
-	bdr_acquire_ddl_lock(bdr_lock_type_from_char(mode));
+	if (bdr_skip_ddl_locking)
+		ereport(WARNING,
+				(errmsg("bdr.skip_ddl_locking is set, ignoring explicit bdr.acquire_global_lock(...) call")));
+	else
+		bdr_acquire_ddl_lock(bdr_lock_type_from_char(mode));
 
 	PG_RETURN_VOID();
 }

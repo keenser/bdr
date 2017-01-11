@@ -754,6 +754,7 @@ bdr_commandfilter(Node *parsetree,
 				  char *completionTag)
 {
 	bool incremented_nestlevel = false;
+	bool affects_only_nonpermanent;
 	bool entered_extension = false;
 
 	/* take strongest lock by default. */
@@ -1215,7 +1216,8 @@ bdr_commandfilter(Node *parsetree,
 	}
 
 	/* now lock other nodes in the bdr flock against ddl */
-	if (!bdr_skip_ddl_locking && !statement_affects_only_nonpermanent(parsetree)
+	affects_only_nonpermanent = statement_affects_only_nonpermanent(parsetree);
+	if (!bdr_skip_ddl_locking && !affects_only_nonpermanent
 		&& lock_type != BDR_LOCK_NOLOCK)
 		bdr_acquire_ddl_lock(lock_type);
 
@@ -1238,9 +1240,18 @@ bdr_commandfilter(Node *parsetree,
 		/*
 		 * On 9.4bdr calling next_ProcessUtility_hook will execute the DDL, which
 		 * will fire an event trigger, which in turn calls
-		 * bdr_queue_ddl_commands(...) to queue the command. So we only do
-		 * actual work on 9.6 where we need to capture the DDL text.
+		 * bdr_queue_ddl_commands(...) to queue the command.
+		 *
+		 * On 9.6 we expect users to explicitly use
+		 * bdr.replicate_ddl_command(...) in which case we won't get here.
 		 */
+
+		if (!affects_only_nonpermanent && PG_VERSION_NUM >= 90600)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("Direct DDL commands are not supported while BDR is active"),
+					 errhint("Use bdr.bdr_replicate_ddl_command(...)")));
+
 		elog(DEBUG3, "DDLREP: Entering level %d DDL block. Toplevel command is %s", bdr_ddl_nestlevel, queryString);
 		incremented_nestlevel = true;
 		bdr_ddl_nestlevel ++;
