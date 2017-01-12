@@ -1,3 +1,0 @@
--- This file allows people trying out the BDR 9.6 support preview
--- to follow the version number switch to 2.0. It serves no other
--- purpose.

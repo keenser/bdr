@@ -2,22 +2,13 @@
 --
 -- This extension script adds compatibility for 9.6 DDL replication
 --
+-- Columns are added to some tables in a prior script,
+-- bdr--1.0.2.0--1.0.3.0.sql, since we need them to be present
+-- on both 1.0 and 2.0 for upgrades to work.
 
 SET LOCAL bdr.permit_unsafe_ddl_commands = true;
 SET LOCAL bdr.skip_ddl_replication = true;
 SET LOCAL search_path = bdr;
-
-ALTER TABLE bdr_queued_commands
-  ADD COLUMN search_path TEXT;
-
-UPDATE bdr_queued_commands
-SET search_path = '';
-
-ALTER TABLE bdr_queued_commands
-  ALTER COLUMN search_path SET DEFAULT '';
-
-ALTER TABLE bdr_queued_commands
-  ALTER COLUMN search_path SET NOT NULL;
 
 -- Marking this immutable is technically a bit cheeky as we could add
 -- new statuses. But for index use we need it, and it's safe since
@@ -73,12 +64,13 @@ BEGIN
 END;
 $$;
 
-ALTER TABLE bdr.bdr_nodes
-  ADD COLUMN node_seq_id smallint;
-
--- BDR doesn't like partial unique indexes, but we don't do
--- conflict resolution on bdr_nodes so it's safe here.
-CREATE UNIQUE INDEX ON bdr.bdr_nodes(node_seq_id) WHERE (node_status IN (bdr.node_status_to_char('BDR_NODE_STATUS_READY')));
+-- BDR doesn't like partial unique indexes. We'd really like
+-- an index like:
+--
+--   CREATE UNIQUE INDEX ON bdr.bdr_nodes(node_seq_id) WHERE (node_status IN (bdr.node_status_to_char('BDR_NODE_STATUS_READY')));
+--
+-- but the simple way we do updates to those catalogs doesn't support partial
+-- or expression indexes. So no constraint enforces node ID uniqueness.
 
 CREATE FUNCTION bdr.global_seq_nextval(regclass)
 RETURNS bigint
@@ -395,20 +387,6 @@ BEGIN
     PERFORM bdr.bdr_connections_changed();
 END;
 $body$;
-
--- Conflict history table didn't have full BDR node IDs before
--- Unfortunately we cannot fix the display attribute ordering.
-ALTER TABLE bdr.bdr_conflict_history
-  ADD COLUMN remote_node_timeline oid;
-ALTER TABLE bdr.bdr_conflict_history
-  ADD COLUMN remote_node_dboid oid;
-ALTER TABLE bdr.bdr_conflict_history
-  ADD COLUMN local_tuple_origin_timeline oid;
-ALTER TABLE bdr.bdr_conflict_history
-  ADD COLUMN local_tuple_origin_dboid oid;
-
--- Conflict history should never be in dumps
-SELECT pg_catalog.pg_extension_config_dump('bdr_conflict_history', 'WHERE false');
 
 -- bdr.bdr_nodes gets synced by bdr_sync_nodes(), it shouldn't be
 -- dumped and applied.
