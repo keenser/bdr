@@ -33,12 +33,52 @@
    Notable release highlights are:
    <itemizedlist>
     <listitem><para>Compatibility with community PostgreSQL 9.6</></>
+    <listitem><para>Still compatible with Postgres-BDR 9.4 for existing users</></>
     <listitem><para>Runs as an extension on PostgreSQL 9.6, no patched PostgreSQL required</></>
     <listitem><para>New global sequences implementation that doesn't experience exhaustion under load or network partitions</></>
     <listitem><para>New DDL replication implementation for PostgreSQL 9.6 compatibility. This brings a different set of limitations and benefits.</></>
     <listitem><para>Retains compatibility with BDR-Postgres 9.4</></>
     <listitem><para>Node join is now race-free.</></>
    </itemizedlist>
+  </para>
+
+  <para>
+   There are some important compatibility changes between BDR 1.0 and 2.0 when
+   run on PostgreSQL 9.6, due to functionality present in Postgres-BDR 9.4 that
+   is not available in community PostgreSQL 9.6. Specifically:
+   <itemizedlist>
+    <listitem>
+     <para>
+      Transparent DDL replication is not (yet) supported by BDR 2.0 on
+      PostgreSQL 9.6. All DDL must be wrapped in <link
+      linkend="function-bdr-replicate-ddl-command"><literal>bdr.bdr_replicate_ddl_command(...)</></>
+      calls. Transparent DDL replication on 9.6 is planned for a future BDR
+      update.
+     </>
+    </>
+    <listitem>
+     <para>
+      BDR 1.0-style global sequences created with <literal>USING bdr</> or
+      <literal>default_sequenceam = 'bdr'</> are <emphasis>not</> supported by
+      BDR 2.0 on PostgreSQL 9.6. An <link linkend="global-sequences">alternate
+      global sequences implementation</> is provided for BDR 2.0. Users on
+      Postgres-BDR 9.4 are also encouraged to switch to the new global
+      sequences model to ease future upgrades and because the new model is more
+      resilient against network partitions.
+     </>
+    </>
+    <listitem>
+     <para>
+      Mixed BDR 1.0 and BDR 2.0 groups are not supported for long term use due to
+      changes in DDL replication. A hybrid-mode group may be run temporarily for
+      upgrades. See <xref linkend="upgrade">.
+     </>
+    </>
+   </itemizedlist>
+  </para>
+
+  <para>
+   There is some more information about compatibility in <xref linkend="upgrade">.
   </para>
 
  </sect1>
