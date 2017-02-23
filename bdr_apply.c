@@ -2588,9 +2588,12 @@ bdr_apply_main(Datum main_arg)
 	/* Read our connection configuration from the database */
 	bdr_apply_reload_config();
 
-	/* Set our local application_name for our SPI connections */
+	/*
+	 * Set our local application_name for our SPI connections. We want to see
+	 * the remote name in pg_stat_activity here.
+	 */
 	resetStringInfo(&query);
-	appendStringInfo(&query, "%s:%s", bdr_get_my_cached_node_name(), "apply");
+	appendStringInfo(&query, "%s:%s", bdr_apply_config->node_name , "apply");
 	if (bdr_apply_worker->forward_changesets)
 		appendStringInfoString(&query, " catchup");
 
@@ -2604,9 +2607,12 @@ bdr_apply_main(Datum main_arg)
 	CurrentResourceOwner = ResourceOwnerCreate(NULL, "bdr apply top-level resource owner");
 	bdr_saved_resowner = CurrentResourceOwner;
 
-	/* Form an application_name string to send to the remote end */
+	/*
+	 * Form an application_name string to send to the remote end. From the
+	 * remote's perspective this is a send connection.
+	 */
 	resetStringInfo(&query);
-	appendStringInfoString(&query, "receive");
+	appendStringInfoString(&query, "send");
 
 	if (bdr_apply_worker->forward_changesets)
 		appendStringInfoString(&query, " catchup");
