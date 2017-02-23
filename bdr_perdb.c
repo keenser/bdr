@@ -731,7 +731,7 @@ bdr_perdb_worker_main(Datum main_arg)
 	bdr_make_my_nodeid(&myid);
 	elog(DEBUG1, "per-db worker for node " BDR_NODEID_FORMAT " starting", BDR_LOCALID_FORMAT_ARGS);
 
-	appendStringInfo(&si, "%s: perdb", bdr_get_my_cached_node_name());
+	appendStringInfo(&si, "%s:perdb", bdr_get_my_cached_node_name());
 	SetConfigOption("application_name", si.data, PGC_USERSET, PGC_S_SESSION);
 	SetConfigOption("lock_timeout", "10000", PGC_USERSET, PGC_S_SESSION);
 

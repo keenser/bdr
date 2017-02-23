@@ -1025,7 +1025,7 @@ BEGIN
   PERFORM pg_terminate_backend(pid)
   FROM pg_stat_activity, bdr.bdr_get_local_nodeid() ni
   WHERE datname = current_database()
-    AND application_name = format('bdr: (%s,%s,%s,): perdb', ni.sysid, ni.timeline, ni.dboid);
+    AND application_name = format('bdr: (%s,%s,%s,):perdb', ni.sysid, ni.timeline, ni.dboid);
 
   -- Clear out the rest of bdr_nodes and bdr_connections
   DELETE FROM bdr.bdr_nodes;
