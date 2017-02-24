@@ -68,11 +68,9 @@
       </simpara>
 
       <simpara>
-       Support for synchronous writes may be added to a future BDR release
-       and some support for synchronous replication already exists for
-       one-way (single-master) replication. (Note that even if synchronous
-       replication is enabled, conflicts are still possible since no locking is
-       performed.)
+	   Support for synchronous writes may be added to a future BDR release and
+	   <link linkend="node-management-synchronous">support for 1-safe
+	   synchronous replication is implemented.</>
       </simpara>
 
       <simpara>

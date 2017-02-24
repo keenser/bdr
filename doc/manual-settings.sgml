@@ -221,12 +221,16 @@
        considerably improve throughput.
       </para>
       <para>
-       It it always is safe to set in the sense that it'll never
-       cause transactions to not be replayed. If it's important that
-       nodes replicate data as soon as possible, so loss of a node causes
-       minimal loss of data that's still only on that node, you should
-       set this to <literal>on</literal> and configure &postgres;'s synchronous
-       replication.
+       It it always is safe to set to <literal>off</> in the sense that it'll never
+       cause transactions to not be replayed. BDR will always resume replay after
+       a crash at the commit after the last locally committed xact, whether or not
+       synchronous commit is on.
+      </para>
+      <para>
+       If it's important that nodes replicate data as soon as possible, so loss
+       of a node causes minimal loss of data that's still only on that node,
+       you should set this to <literal>on</literal> and
+       <link linkend="node-management-synchronous">configure synchronous replication</link>.
       </para>
       <note>
        <para>
@@ -235,7 +239,8 @@
         arise with multi-master use of BDR. There is still no
         locking between nodes and no global snapshot management
         so concurrent transactions on different nodes can still
-        change the same tuple. See the <xref linkend="overview">.
+        change the same tuple. See the <xref linkend="overview">
+        and <xref linkend="node-management-synchronous">.
        </para>
       </note>
       <para>
