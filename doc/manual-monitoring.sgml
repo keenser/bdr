@@ -275,6 +275,22 @@
 
   </sect2>
 
+  <sect2 id="monitoring-workers" xreflabel="Monitoring BDR workres">
+   <title>Montitoring BDR workers</>
+
+   <para>
+    All BDR workers (except the supervisor) show up in the system view
+    <ulink url="https://www.postgresql.org/docs/current/static/monitoring-stats.html#PG-STAT-ACTIVITY-VIEW"><literal>pg_stat_activity</></>
+    so this view offers some insight into the state of a BDR system. There is
+    always one <replaceable>nodename</><literal>:perdb</> worker per BDR node.
+    Each connection to another node adds one <replaceable>othernodename</><literal>:apply</>
+    entry for the local apply worker receiving and applying changes from that
+    remote node, and one <replaceable>othernodename</><literal>:send</>
+    worker for the local walsender the remote apply worker is connected to.
+   </para>
+
+  </sect2>
+
  </sect1>
 
  <sect1 id="monitoring-ddl-lock" xreflabel="Monitoring global DDL locks">
