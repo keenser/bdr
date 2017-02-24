@@ -301,9 +301,18 @@
    <literal>"</>double quoted<literal>"</> for use in <literal>synchronous_standby_names</>.
   </para>
 
+  <note>
+   <para>
+    BDR 1.0 can also support synchronous replication, but the node connection strings
+    in <literal>bdr.bdr_connections</> must manually be amended to add
+    <literal>application_name=</><replaceable>nodename</><literal>:send</>
+    (replacing <replaceable>nodename</> with the actual node name).
+   </para>
+  </note>
+
   <para>
    A typical configuration is 4 nodes arranged in two mutually synchronous
-   pairs. If the nodes names are A, B, C and D and we A to be synchronous with
+   pairs. If the nodes names are A, B, C and D and we want A to be synchronous with
    B and vice versa, and C to be synchronous with D and vice versa, each node's
    configuration would be:
    <programlisting>
@@ -332,14 +341,22 @@
   </para>
 
   <para>
-   Remember that each node may only be synchronous with one other node at a
-   time as there is no n-safe or all-safe synchronous support in PostgreSQL.
+   Remember that on PostgreSQL 9.6 and below each node may only be synchronous
+   with one other node at a time as there is no n-safe or all-safe synchronous
+   support in PostgreSQL.
    See <ulink url="https://www.postgresql.org/docs/current/static/warm-standby.html#SYNCHRONOUS-REPLICATION">
    the PostgreSQL manual on synchronous replication</>
    for a discussion of how synchronous replication works in PostgreSQL. Most of
    the same principles apply when the other end is a BDR node not a physical
    standby.
   </para>
+
+  <note>
+   <para>
+    PostgreSQL 10 will support n-safe synchronous replication, which should work
+    automatically with BDR 2.0 when support for PostgreSQL 10 is added.
+   </para>
+  </note>
 
   <para>
    It's generally a good idea to set <link
@@ -364,7 +381,7 @@
    Unlike PostgreSQL's physical replication, logical decoding (and therefore
    BDR) cannot begin replicating a transaction to peer nodes until it has
    committed on the originating node.  This means that large transactions can
-   be subject to long delays on literal <literal>COMMIT</> when synchronous
+   be subject to long delays on <literal>COMMIT</> when synchronous
    replication is in use. Even if large transactions are run with
    <literal>synchronous_commit = off</> they may delay commit confirmation
    for small synchronous transactions that commit after the big transactions
