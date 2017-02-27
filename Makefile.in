@@ -29,7 +29,7 @@ DATA_built = \
 	extsql/bdr--1.0.3.0.sql \
 	extsql/bdr--2.0.0.0.sql
 
-DOCS = README.bdr
+DOCS = README.bdr bdr.conf.sample
 # Putting binaries in SCRIPTS_built is a bit of a hack, but we're pushing
 # PGXS to its limits in BDR anyway, why not abuse it some more?
 SCRIPTS_built = scripts/bdr_initial_load bdr_init_copy bdr_dump
