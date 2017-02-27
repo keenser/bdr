@@ -144,8 +144,12 @@ ifeq ($(MAJORVERSION),9.6)
 RESETXLOG_OBJS := pg_resetxlog/96/pg_resetxlog.o
 RESETXLOG_LIBS := -lpgfeutils
 
-bdr_resetxlog: $(RESETXLOG_OBJS)
+bdr_resetxlog_dir:
 	mkdir -p pg_resetxlog/96
+
+.PHONY: bdr_resetxlog_dir
+
+bdr_resetxlog: bdr_resetxlog_dir $(RESETXLOG_OBJS)
 	$(CC) $(CFLAGS) $(RESETXLOG_OBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@$(X)
 else
 RESETXLOG_OBJS := 
@@ -206,10 +210,9 @@ $(eval $(call genextfile,1.0.2.0,1.0.3.0))
 $(eval $(call genextfile,1.0.3.0,2.0.0.0))
 
 pg_dump_dir:
-	mkdir -p pg_dump
+	mkdir -p $(BDR_DUMP_DIR)
 
 bdr_dump: pg_dump_dir $(DUMPOBJS)
-	mkdir -p $(BDR_DUMP_DIR)
 	$(CC) $(CFLAGS) $(DUMPOBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) $(BDR_DUMP_LIBS) -o $@$(X)
 
 doc:
