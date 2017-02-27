@@ -278,17 +278,24 @@
 
  </sect1>
 
- <sect1 id="node-management-synchronous" xreflabel="1-safe synchronous replication">
-  <title>1-safe synchronous replication</>
+ <sect1 id="node-management-synchronous" xreflabel="n-safe synchronous replication">
+  <title>n-safe synchronous replication</>
 
   <para>
-   BDR can be configured to use PostgreSQL's underlying 1-safe synchronous
-   replication support. Each node may have a priority-ordered of other nodes
-   set in
-   <ulink url="https://www.postgresql.org/docs/current/static/runtime-config-replication.html#GUC-SYNCHRONOUS-STANDBY-NAMES"><literal>synchronous_standby_names</></>.
-   PostgreSQL will delay confirmation of <literal>COMMIT</> to the client
-   until the highest-priority currently-connected node on the list has
-   confirmed that the commit has been replayed and locally flushed.
+   BDR can be configured to use PostgreSQL's 9.6+'s underlying n-safe
+   synchronous replication support. Each node may have a priority-ordered of
+   other nodes set in
+   <ulink url="https://www.postgresql.org/docs/current/static/runtime-config-replication.html#GUC-SYNCHRONOUS-STANDBY-NAMES"><literal>synchronous_standby_names</></>
+   along with the minimum number that must confirm replay before the commit
+   is accepted on the upstream. PostgreSQL will delay confirmation of
+   <literal>COMMIT</> to the client until the highest-priority
+   currently-connected node on the list has confirmed that the commit has been
+   replayed and locally flushed.
+  </para>
+
+  <para>
+   When using Postgres-BDR 9.4, only 1-safe synchronous replication is supported
+   using the simple list-of-standby-names syntax for <literal>synchronous_standby_names</>.
   </para>
 
   <para>
@@ -311,22 +318,22 @@
   </note>
 
   <para>
-   A typical configuration is 4 nodes arranged in two mutually synchronous
+   A typical configuration is 4 nodes arranged in two mutually synchronous 1-safe
    pairs. If the nodes names are A, B, C and D and we want A to be synchronous with
    B and vice versa, and C to be synchronous with D and vice versa, each node's
    configuration would be:
    <programlisting>
    # on node A:
-   synchronous_standby_names = '"B:send"'
+   synchronous_standby_names = '1 ("B:send")'
    bdr.synchronous_commit = on
    # on node B:
-   synchronous_standby_names = '"A:send"'
+   synchronous_standby_names = '1 ("A:send")'
    bdr.synchronous_commit = on
    # on node C:
-   synchronous_standby_names = '"D:send"'
+   synchronous_standby_names = '1 ("D:send")'
    bdr.synchronous_commit = on
    # on node D:
-   synchronous_standby_names = '"C:send"'
+   synchronous_standby_names = '1 ("C:send")'
    bdr.synchronous_commit = on
    </programlisting>
    With this configuration, commits on A will hang indefinitely if B goes down
@@ -336,14 +343,19 @@
    <programlisting>
    # on node A, prefer sync rep to B, but if B is down allow COMMIT
    # confirmation if either C or D are reachable and caught up:
-   synchronous_standby_names = '"B:send","C:send","D:send"'
+   synchronous_standby_names = '1 ("B:send","C:send","D:send")'
    </programlisting>
+   If confirmation from all three other nodes is required before local
+   commit, use 3-safe:
+   <programlisting>
+   # Require that B, C and D all confirm commit replay before local commit
+   # on A becomes visible.
+   synchronous_standby_names = '3 ("B:send","C:send","D:send")'
+   </programlisting>
+
   </para>
 
   <para>
-   Remember that on PostgreSQL 9.6 and below each node may only be synchronous
-   with one other node at a time as there is no n-safe or all-safe synchronous
-   support in PostgreSQL.
    See <ulink url="https://www.postgresql.org/docs/current/static/warm-standby.html#SYNCHRONOUS-REPLICATION">
    the PostgreSQL manual on synchronous replication</>
    for a discussion of how synchronous replication works in PostgreSQL. Most of
@@ -353,8 +365,12 @@
 
   <note>
    <para>
-    PostgreSQL 10 will support n-safe synchronous replication, which should work
-    automatically with BDR 2.0 when support for PostgreSQL 10 is added.
+    PostgreSQL's synchronous replication commits on the upstream before
+    replicating to the downstream(s), it just hides the commit from other
+    concurrent transactions until the downstreams complete. If the upstream is
+    restarted the hidden commit(s) become visible even if the downstreams have
+    not replied yet, so node restarts effectively momentarily disable
+    synchronous replication.
    </para>
   </note>
 
@@ -388,13 +404,11 @@
    because logical decoding processes transactions in strict commit-order.
   </para>
 
-  <note>
-   <para>
-    Even if synchronous replication is enabled, conflicts are still possible
-    even in a 2-node mutually synchronous configuration since no inter-node
-    locking is performed.
-   </para>
-  </note>
+  <para>
+   Even if synchronous replication is enabled, conflicts are still possible
+   even in a 2-node mutually synchronous configuration since no inter-node
+   locking is performed.
+  </para>
 
  </sect1>
 
