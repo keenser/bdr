@@ -39,7 +39,7 @@ SCRIPTS_built += bdr_resetxlog
 endif
 
 # When in development add -Werror
-PG_CPPFLAGS = -std=gnu89 -I$(BDR_PGVERCOMPAT_INCDIR) -I$(libpq_srcdir) -Wmissing-prototypes -Wmissing-declarations $(EXTRA_CFLAGS)
+PG_CPPFLAGS = -std=gnu89 -I$(BDR_PGVERCOMPAT_INCDIR) -I$(libpq_srcdir) -Wall -Wmissing-prototypes -Wmissing-declarations $(EXTRA_CFLAGS)
 SHLIB_LINK = $(libpq)
 
 OBJS = \
