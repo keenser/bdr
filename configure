@@ -2815,8 +2815,6 @@ ac_config_files="$ac_config_files Makefile.global"
 
 ac_config_files="$ac_config_files doc/Makefile"
 
-ac_config_files="$ac_config_files bdr.conf.sample"
-
 ac_config_files="$ac_config_files run_tests"
 
 ac_config_headers="$ac_config_headers bdr_config_generated.h"
@@ -3515,7 +3513,6 @@ do
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "Makefile.global") CONFIG_FILES="$CONFIG_FILES Makefile.global" ;;
     "doc/Makefile") CONFIG_FILES="$CONFIG_FILES doc/Makefile" ;;
-    "bdr.conf.sample") CONFIG_FILES="$CONFIG_FILES bdr.conf.sample" ;;
     "run_tests") CONFIG_FILES="$CONFIG_FILES run_tests" ;;
     "bdr_config_generated.h") CONFIG_HEADERS="$CONFIG_HEADERS bdr_config_generated.h" ;;
 
