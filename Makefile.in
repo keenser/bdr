@@ -29,9 +29,10 @@ DATA_built = \
 	extsql/bdr--1.0.3.0.sql \
 	extsql/bdr--2.0.0.0.sql
 
-DOCS = bdr.conf.sample README.bdr
-SCRIPTS = bdr_init_copy bdr_dump
-SCRIPTS_built = scripts/bdr_initial_load
+DOCS = README.bdr
+# Putting binaries in SCRIPTS_built is a bit of a hack, but we're pushing
+# PGXS to its limits in BDR anyway, why not abuse it some more?
+SCRIPTS_built = scripts/bdr_initial_load bdr_init_copy bdr_dump
 
 # We can't use Makefile.global's MAJORVERSION here yet
 ifneq ($(BDR_PG_MAJORVERSION),9.4)
@@ -39,7 +40,7 @@ SCRIPTS_built += bdr_resetxlog
 endif
 
 # When in development add -Werror
-PG_CPPFLAGS = -std=gnu89 -I$(BDR_PGVERCOMPAT_INCDIR) -I$(libpq_srcdir) -Wall -Wmissing-prototypes -Wmissing-declarations $(EXTRA_CFLAGS)
+PG_CPPFLAGS = -std=gnu89 -I$(srcdir)/$(BDR_PGVERCOMPAT_INCDIR) -I$(libpq_srcdir) -Wall -Wmissing-prototypes -Wmissing-declarations $(EXTRA_CFLAGS)
 SHLIB_LINK = $(libpq)
 
 OBJS = \
@@ -144,6 +145,7 @@ RESETXLOG_OBJS := pg_resetxlog/96/pg_resetxlog.o
 RESETXLOG_LIBS := -lpgfeutils
 
 bdr_resetxlog: $(RESETXLOG_OBJS)
+	mkdir -p pg_resetxlog/96
 	$(CC) $(CFLAGS) $(RESETXLOG_OBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@$(X)
 else
 RESETXLOG_OBJS := 
@@ -207,6 +209,7 @@ pg_dump_dir:
 	mkdir -p pg_dump
 
 bdr_dump: pg_dump_dir $(DUMPOBJS)
+	mkdir -p $(BDR_DUMP_DIR)
 	$(CC) $(CFLAGS) $(DUMPOBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) $(BDR_DUMP_LIBS) -o $@$(X)
 
 doc:
