@@ -218,25 +218,35 @@ diag "taking final DDL lock";
 $node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
 diag "done, checking final state";
 
-my $expected = q[0-0 B-
-0-0 B+
-A: 1-1 B-
-A: 1-1 B+
-a: 2-1 B+ C+
-A: 2-1 B- C+
-A: 2-1 B+ C-
-a: 2-1 B+ C+ 2
-A: 2-2 B- C+
-A: 2-2 B+ C-
-A: 2-2 B+ C+
-C: 1-1 B-
-nA: 2-1 B- C-
-node_a
-node_b
-node_c
-node_d];
+my $expected = q[node_a|0-0 B-
+node_a|0-0 B+
+node_a|A: 1-1 B-
+node_a|A: 1-1 B+
+node_a|a: 2-1 B+ C+
+node_a|A: 2-1 B- C+
+node_a|A: 2-1 B+ C-
+node_a|a: 2-1 B+ C+ 2
+node_a|A: 2-2 B- C+
+node_a|A: 2-2 B+ C-
+node_a|A: 2-2 B+ C+
+node_c|C: 1-1 B-
+node_a|nA: 2-1 B- C-
+node_a|node_a
+node_b|node_b
+node_c|node_c
+node_d|node_d];
 
-is($node_a->safe_psql('bdr_test', 'select x from t order by x;'), $expected, 'final results node A');
-is($node_b->safe_psql('bdr_test', 'select x from t order by x;'), $expected, 'final results node B');
-is($node_c->safe_psql('bdr_test', 'select x from t order by x;'), $expected, 'final results node C');
-is($node_d->safe_psql('bdr_test', 'select x from t order by x;'), $expected, 'final results node D');
+my $query = q[
+select coalesce(node_name, bdr.bdr_get_local_node_name()) AS origin_node_name, x
+from t
+cross join lateral bdr.get_transaction_replorigin(xmin) ro(originid)
+left join pg_replication_origin on (roident = originid)
+cross join lateral bdr.bdr_parse_replident_name(roname)
+left join bdr.bdr_nodes on (remote_sysid, remote_timeline, remote_dboid) = (node_sysid, node_timeline, node_dboid)
+order by x;
+];
+
+is($node_a->safe_psql('bdr_test', $query), $expected, 'final results node A');
+is($node_b->safe_psql('bdr_test', $query), $expected, 'final results node B');
+is($node_c->safe_psql('bdr_test', $query), $expected, 'final results node C');
+is($node_d->safe_psql('bdr_test', $query), $expected, 'final results node D');
