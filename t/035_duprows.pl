@@ -25,12 +25,13 @@ create_bdr_group($node_a);
 my $node_b = get_new_node('node_b');
 startandjoin_node($node_b, $node_a);
 
+my @nodes = ($node_a, $node_b);
+
 # Everything working?
 $node_a->safe_psql('bdr_test', q[SELECT bdr.bdr_replicate_ddl_command($DDL$CREATE TABLE public.t(x text)$DDL$)]);
 # Make sure everything caught up by forcing another lock
 $node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
 
-my @nodes = ($node_a, $node_b);
 for my $node (@nodes) {
   $node->safe_psql('bdr_test', q[INSERT INTO t(x) VALUES (bdr.bdr_get_local_node_name())]);
 }
@@ -63,3 +64,6 @@ node_b|node_b];
 
 is($node_a->safe_psql('bdr_test', $query), $expected, 'final results node A');
 is($node_b->safe_psql('bdr_test', $query), $expected, 'final results node B');
+
+$node_a->stop;
+$node_b->stop;
