@@ -57,6 +57,7 @@ sub edit_conf {
 # Make sure there are enough background worker slots for BDR to run
 			max_worker_processes = 20
 			log_min_messages = debug1
+			log_line_prefix = '%m %p %d [%a] %c:%l (%v:%t) '
 			});
 
 }
