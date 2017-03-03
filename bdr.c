@@ -1484,3 +1484,21 @@ bdr_is_active_in_db(PG_FUNCTION_ARGS)
 {
 	PG_RETURN_BOOL(bdr_is_bdr_activated_db(MyDatabaseId));
 }
+
+/*
+ * We forgot to add this to core Pg 9.6, so expose it
+ * via BDR.
+ */
+PG_FUNCTION_INFO_V1(bdr_get_transaction_replorigin);
+
+Datum
+bdr_get_transaction_replorigin(PG_FUNCTION_ARGS)
+{
+        TransactionId   xid = PG_GETARG_UINT32(0);
+        RepOriginId     data;
+	TimestampTz	ts;
+
+        TransactionIdGetCommitTsData(xid, &ts, &data);
+
+        PG_RETURN_INT32( (int32)data );
+}

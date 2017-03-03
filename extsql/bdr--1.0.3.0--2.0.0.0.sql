@@ -599,6 +599,20 @@ $$;
 -- dumped and applied.
 SELECT pg_catalog.pg_extension_config_dump('bdr_nodes', 'WHERE false');
 
+--
+-- An oversight in introducing commit timestamps and replication origins
+-- to 9.6 means that on 9.6 we don't have any equivalent to 9.4bdr's
+-- pg_get_transaction_extradata(xid) function. Add a wrapper in BDR
+-- for now.
+--
+CREATE FUNCTION bdr.get_transaction_replorigin(xid) RETURNS oid
+LANGUAGE c AS 'MODULE_PATHNAME','bdr_get_transaction_replorigin';
+
+REVOKE ALL ON FUNCTION bdr.get_transaction_replorigin(xid) FROM public;
+
+COMMENT ON FUNCTION bdr.get_transaction_replorigin(xid)
+IS 'get the replication origin id for a given transaction if still known';
+
 RESET bdr.permit_unsafe_ddl_commands;
 RESET bdr.skip_ddl_replication;
 RESET search_path;
