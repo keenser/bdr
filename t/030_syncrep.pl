@@ -95,6 +95,7 @@ $node_c->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '"
 $node_d->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '"node_c:send"']);
 
 for my $node (@nodes) {
+  $node->safe_psql('bdr_test', q[ALTER SYSTEM SET bdr.synchronous_commit = on]);
   $node->restart;
 }
 
@@ -212,6 +213,10 @@ is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('a: 2-1 B+ C+ 2')]), 0, 
 #-------------------------------------
 # Consistent?
 #-------------------------------------
+
+diag "taking final DDL lock";
+$node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
+diag "done, checking final state";
 
 my $expected = q[0-0 B-
 0-0 B+
