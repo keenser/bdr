@@ -403,6 +403,8 @@ process_remote_commit(StringInfo s)
 
 	Assert(commit_lsn == replorigin_session_origin_lsn);
 	Assert(committime == replorigin_session_origin_timestamp);
+	/* replication origin is start of commit xlog record, end_lsn is end+1 */
+	Assert(end_lsn > replorigin_session_origin_lsn);
 
 	if (started_transaction)
 	{
@@ -427,19 +429,16 @@ process_remote_commit(StringInfo s)
 	pgstat_report_activity(STATE_IDLE, NULL);
 
 	/*
-	 * Advance the local replication identifier's lsn, so we don't replay this
-	 * commit again.
+	 * We set the session origin flush point up as
+	 * replorigin_session_origin_lsn in process_remote_begin, so no further
+	 * action is required here. XactLogCommitRecord(...) will write out the
+	 * replorigin_session_origin_lsn and advance our session's replication
+	 * origin in-memory state accordingly.
 	 *
-	 * We always advance the local replication identifier for the origin node,
-	 * even if we're really replaying a commit that's been forwarded from
-	 * another node (per remote_origin_id below). This is necessary to make
-	 * sure we don't replay the same forwarded commit multiple times.
-	 */
-	replorigin_session_advance(end_lsn, XactLastCommitEnd);
-
-	/*
-	 * If we're in catchup mode, see if the commit is relayed from elsewhere
-	 * and advance the appropriate slot.
+	 * However, if we're in catchup mode, see if the commit is relayed from
+	 * elsewhere and advance the replication origin corresponding to the
+	 * appropriate node, since that won't get advanced automatically
+	 * on commit.
 	 */
 	if (remote_origin_id != InvalidRepOriginId &&
 		remote_origin_id != replorigin_session_origin)
