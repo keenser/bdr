@@ -277,7 +277,7 @@ process_remote_begin(StringInfo s)
 
 	/*
 	 * If we're in catchup mode, see if this transaction is relayed from
-	 * elsewhere and advance the appropriate replication origin.
+	 * elsewhere and prepare to advance the appropriate replication origin.
 	 */
 	if (flags & BDR_OUTPUT_TRANSACTION_HAS_ORIGIN)
 	{
@@ -387,8 +387,8 @@ process_remote_commit(StringInfo s)
 		elog(ERROR, "Commit flags are currently unused, but flags was set to %i", flags);
 
 	/* order of access to fields after flags is important */
-	commit_lsn = pq_getmsgint64(s);
-	end_lsn = pq_getmsgint64(s);
+	commit_lsn = pq_getmsgint64(s);	/* start of commit record */
+	end_lsn = pq_getmsgint64(s);	/* end of commit record + 1 */
 	committime = pq_getmsgint64(s);
 
 	if (bdr_trace_replay)
@@ -436,6 +436,27 @@ process_remote_commit(StringInfo s)
 	 * sure we don't replay the same forwarded commit multiple times.
 	 */
 	replorigin_session_advance(end_lsn, XactLastCommitEnd);
+
+	/*
+	 * If we're in catchup mode, see if the commit is relayed from elsewhere
+	 * and advance the appropriate slot.
+	 */
+	if (remote_origin_id != InvalidRepOriginId &&
+		remote_origin_id != replorigin_session_origin)
+	{
+		/*
+		 * The row isn't from the immediate upstream; advance the slot of the
+		 * node it originally came from so we start replay of that node's
+		 * change data at the right place.
+		 *
+		 * Because we only know the LSN of the commit on the remote (not the
+		 * end_lsn), and we want to start replay only AFTER that commit, add 1
+		 * so we request replay to start after the beginning of the commit
+		 * record and it gets skipped.
+		 */
+		replorigin_advance(remote_origin_id, remote_origin_lsn + 1,
+				XactLastCommitEnd, false, true);
+	}
 
 	CurrentResourceOwner = bdr_saved_resowner;
 
