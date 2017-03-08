@@ -1331,7 +1331,13 @@ bdr_skip_changes_upto(PG_FUNCTION_ARGS)
 		LockRelationOid(ReplicationOriginRelationId, RowExclusiveLock);
 #endif
 
-		replorigin_advance(nodeid, upto_lsn, XactLastCommitEnd, false, true);
+
+		/* 
+		 * upto_lsn is documented as being exclusive, i.e. we skip a commit
+		 * starting exactly at upto_lsn. But replication starts replay
+		 * at the passed LSN inclusive, so we need to increment it.
+		 */
+		replorigin_advance(nodeid, upto_lsn + 1, XactLastCommitEnd, false, true);
 
 #if BDR_VERSION_NUM >= 90600
 		UnlockRelationOid(ReplicationOriginRelationId, RowExclusiveLock);

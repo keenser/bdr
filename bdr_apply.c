@@ -167,7 +167,7 @@ format_action_description(
 	}
 
 	appendStringInfo(si,
-			" in commit %X/%X, xid %u commited at %s (action #%u)",
+			" in commit before %X/%X, xid %u commited at %s (action #%u)",
 			(uint32)(replorigin_session_origin_lsn>>32),
 			(uint32)replorigin_session_origin_lsn,
 			replication_origin_xid,
@@ -212,7 +212,7 @@ action_error_callback(void *arg)
 static void
 process_remote_begin(StringInfo s)
 {
-	XLogRecPtr		origlsn;
+	XLogRecPtr		commit_afterend_lsn;
 	TimestampTz		committime;
 	TimestampTz		current;
 	TransactionId	remote_xid;
@@ -237,9 +237,13 @@ process_remote_begin(StringInfo s)
 
 	flags = pq_getmsgint(s, 4);
 
-	/* This is the _commit_ LSN even though we're in BEGIN */
-	origlsn = pq_getmsgint64(s);
-	Assert(origlsn != InvalidXLogRecPtr);
+	/*
+	 * This is the LSN of the end of the commit xlog record + 1, even
+	 * though we're in BEGIN. We have it because we process the whole
+	 * reorder buffer only at commit time.
+	 */
+	commit_afterend_lsn = pq_getmsgint64(s);
+	Assert(commit_afterend_lsn != InvalidXLogRecPtr);
 	committime = pq_getmsgint64(s);
 	remote_xid = pq_getmsgint(s, 4);
 
@@ -258,8 +262,18 @@ process_remote_begin(StringInfo s)
 	}
 
 
-	/* setup state for commit and conflict detection */
-	replorigin_session_origin_lsn = origlsn;
+	/*
+	 * Set up state for commit and conflict detection. The timestamp will be
+	 * recorded as the replicated xact's commit timestamp, and the LSN will be
+	 * used to advance the replication origin for the node at local COMMIT
+	 * time. Set the remote LSN to the end of the remote commit record + 1
+	 * so we know exactly when the next record to start processing is.
+	 * 
+	 * This means that replorigin_session_origin_lsn and our replication
+	 * origin doesn't actually point to the last-processed commit record,
+	 * but just after it.
+	 */
+	replorigin_session_origin_lsn = commit_afterend_lsn;
 	replorigin_session_origin_timestamp = committime;
 
 	/* store remote xid for logging and debugging */
@@ -267,7 +281,8 @@ process_remote_begin(StringInfo s)
 
 	snprintf(statbuf, sizeof(statbuf),
 			"bdr_apply: BEGIN origin(orig_lsn, timestamp): %X/%X, %s",
-			(uint32) (origlsn >> 32), (uint32) origlsn,
+			(uint32) (replorigin_session_origin_lsn >> 32),
+			(uint32) replorigin_session_origin_lsn,
 			timestamptz_to_str(committime));
 
 	pgstat_report_activity(STATE_RUNNING, statbuf);
@@ -366,7 +381,7 @@ process_remote_commit(StringInfo s)
 {
 	XLogRecPtr		commit_lsn PG_USED_FOR_ASSERTS_ONLY;
 	TimestampTz		committime PG_USED_FOR_ASSERTS_ONLY;
-	TimestampTz		end_lsn;
+	TimestampTz		commit_afterend_lsn;
 	int				flags;
 	ErrorContextCallback errcallback;
 	struct ActionErrCallbackArg cbarg;
@@ -387,8 +402,8 @@ process_remote_commit(StringInfo s)
 		elog(ERROR, "Commit flags are currently unused, but flags was set to %i", flags);
 
 	/* order of access to fields after flags is important */
-	commit_lsn = pq_getmsgint64(s);	/* start of commit record */
-	end_lsn = pq_getmsgint64(s);	/* end of commit record + 1 */
+	commit_lsn = pq_getmsgint64(s);	/* start of commit record; not used anymore */
+	commit_afterend_lsn = pq_getmsgint64(s);	/* end of commit record + 1 */
 	committime = pq_getmsgint64(s);
 
 	if (bdr_trace_replay)
@@ -401,10 +416,23 @@ process_remote_commit(StringInfo s)
 		cbarg.suppress_output = false;
 	}
 
-	Assert(commit_lsn == replorigin_session_origin_lsn);
 	Assert(committime == replorigin_session_origin_timestamp);
-	/* replication origin is start of commit xlog record, end_lsn is end+1 */
-	Assert(end_lsn > replorigin_session_origin_lsn);
+
+	Assert(replorigin_session_origin_lsn == commit_afterend_lsn /* bdr 2.0 msg */
+		|| replorigin_session_origin_lsn == commit_lsn); /* bdr 1.0 msg */
+
+	/*
+	 * BDR 1.0 used to send the start-of-commit lsn (commit_lsn) in BEGIN,
+	 * not the position of the end of the commit record, and we might have
+	 * used that in the replorigin settings if that's all we had.
+	 *
+	 * That's wrong; we're supposed to use end-of-commit + 1. But with BDR
+	 * 1.0 we don't have that information. To protect against replaying
+	 * the same commit again, report that we've flushed at least 1 byte
+	 * past start-of-commit.
+	 */
+	if (replorigin_session_origin_lsn == commit_lsn)
+		replorigin_session_origin_lsn += 1;
 
 	if (started_transaction)
 	{
@@ -418,7 +446,8 @@ process_remote_commit(StringInfo s)
 		 */
 		flushpos = (BdrFlushPosition *) palloc(sizeof(BdrFlushPosition));
 		flushpos->local_end = XactLastCommitEnd;
-		flushpos->remote_end = end_lsn;
+		/* Feedback is supposed to be the last flushed LSN + 1 */
+		flushpos->remote_end = replorigin_session_origin_lsn;
 
 		dlist_push_tail(&bdr_lsn_association, &flushpos->node);
 
@@ -447,13 +476,8 @@ process_remote_commit(StringInfo s)
 		 * The row isn't from the immediate upstream; advance the slot of the
 		 * node it originally came from so we start replay of that node's
 		 * change data at the right place.
-		 *
-		 * Because we only know the LSN of the commit on the remote (not the
-		 * end_lsn), and we want to start replay only AFTER that commit, add 1
-		 * so we request replay to start after the beginning of the commit
-		 * record and it gets skipped.
 		 */
-		replorigin_advance(remote_origin_id, remote_origin_lsn + 1,
+		replorigin_advance(remote_origin_id, remote_origin_lsn,
 				XactLastCommitEnd, false, true);
 	}
 
@@ -469,14 +493,15 @@ process_remote_commit(StringInfo s)
 
 	/*
 	 * Stop replay if we're doing limited replay and we've replayed up to the
-	 * last record we're supposed to process.
+	 * last record we're supposed to process. Since the end lsn points to the
+	 * start of the next record, we should stop if replay equals it.
 	 */
 	if (bdr_apply_worker->replay_stop_lsn != InvalidXLogRecPtr
-			&& bdr_apply_worker->replay_stop_lsn <= end_lsn)
+			&& bdr_apply_worker->replay_stop_lsn <= commit_afterend_lsn)
 	{
 		ereport(LOG,
-				(errmsg("bdr apply finished processing; replayed to %X/%X of required %X/%X",
-				 (uint32)(end_lsn>>32), (uint32)end_lsn,
+				(errmsg("bdr apply finished processing; replayed up to %X/%X of required %X/%X",
+				 (uint32)(commit_afterend_lsn>>32), (uint32)commit_afterend_lsn,
 				 (uint32)(bdr_apply_worker->replay_stop_lsn>>32), (uint32)bdr_apply_worker->replay_stop_lsn)));
 		/*
 		 * We clear the replay_stop_lsn field to indicate successful catchup,
@@ -2659,11 +2684,14 @@ bdr_apply_main(Datum main_arg)
 	/*
 	 * Check whether we already replayed something so we don't replay it
 	 * multiple times.
+	 *
+	 * The replication origin will contain the end of the last flushed
+	 * commit record + 1, which is the startpoint we want for the
+	 * (inclusive) argument to START_REPLICATION.
 	 */
-
 	start_from = replorigin_session_get_progress(false);
 
-	elog(INFO, "starting up replication from %u at %X/%X",
+	elog(INFO, "starting up replication from %u at %X/%X (inclusive)",
 		 replication_identifier,
 		 (uint32) (start_from >> 32), (uint32) start_from);
 

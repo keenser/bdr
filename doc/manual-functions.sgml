@@ -400,8 +400,9 @@
         <para>
          Discard (skip over) changes not yet replayed from the peer with identity
          (<replaceable>sysid</replaceable>,<replaceable>timeline</replaceable>,<replaceable>dboid</replaceable>),
-         resuming replay at the first commit after <replaceable>skip_to_lsn</replaceable>. A commit exactly at
-         the specified LSN is skipped, not replayed.
+         resuming replay at the first commit that begins after
+         <replaceable>skip_to_lsn</replaceable>. A commit that begins exactly
+         at the specified LSN is skipped, not replayed.
         </para>
         <warning>
          <para>

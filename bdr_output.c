@@ -748,7 +748,13 @@ pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 	pq_sendint(ctx->out, flags, 4);
 
 	/* fixed fields */
-	pq_sendint64(ctx->out, txn->final_lsn);
+	/*
+	 * BDR 1.0 sent the commit start lsn here, but that has issues with
+	 * progress tracking; see bdr_apply for details. Instead send LSN of
+	 * end of commit + 1 so that's what gets recorded in replication
+	 * origins.
+	 */
+	pq_sendint64(ctx->out, txn->end_lsn);
 	pq_sendint64(ctx->out, txn->commit_time);
 	pq_sendint(ctx->out, txn->xid, 4);
 
@@ -804,7 +810,10 @@ pg_decode_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	pq_sendint(ctx->out, flags, 4);
 
 	/* Send fixed fields */
+	Assert(commit_lsn == txn->final_lsn); /* why do we pass this to the CB separately? */
 	pq_sendint64(ctx->out, commit_lsn);
+	/* end_lsn is end of commit + 1, which is what's used in replorigin and feedback msgs */
+	Assert(txn->end_lsn != InvalidXLogRecPtr);
 	pq_sendint64(ctx->out, txn->end_lsn);
 	pq_sendint64(ctx->out, txn->commit_time);
 
