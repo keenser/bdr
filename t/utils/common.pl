@@ -47,6 +47,8 @@ sub edit_conf {
 	my $node = shift;
 	my $conf_file = shift;
 
+	# Setting bdr.trace_replay=on here can be a big help, so added for
+	# discoverability.
 	$node->append_conf($conf_file, q{
 			wal_level = logical
 			track_commit_timestamp = on
@@ -57,6 +59,7 @@ sub edit_conf {
 # Make sure there are enough background worker slots for BDR to run
 			max_worker_processes = 20
 			log_min_messages = debug1
+			#bdr.trace_replay = off
 			log_line_prefix = '%m %p %d [%a] %c:%l (%v:%t) '
 			});
 
