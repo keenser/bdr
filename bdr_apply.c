@@ -1607,9 +1607,16 @@ process_queued_ddl_command(HeapTuple cmdtup, bool tx_just_started)
 						 RelationGetDescr(cmdsrel),
 						 &isnull);
 	if (isnull)
-		elog(ERROR, "null search_path for \"%s\" command tuple", command_tag);
-
-	search_path = TextDatumGetCString(datum);
+	{
+		/*
+		 * Older BDR versions didn't have search_path and we can't UPDATE
+		 * old rows, so there will be nulls. Those prior versions also forced
+		 * search_path to '' so we can safely assume as much.
+		 */
+		search_path = "";
+	}
+	else
+		search_path = TextDatumGetCString(datum);
 
 	/* close relation, command execution might end/start xact */
 	heap_close(cmdsrel, NoLock);
@@ -1618,7 +1625,8 @@ process_queued_ddl_command(HeapTuple cmdtup, bool tx_just_started)
 
 	if (bdr_trace_replay)
 	{
-		elog(LOG, "TRACE: QUEUED_DDL: %s", cmdstr);
+		elog(LOG, "TRACE: QUEUED_DDL: [%s] with search_path []",
+			 cmdstr, search_path);
 	}
 
 	bdr_execute_ddl_command(cmdstr, perpetrator, search_path, tx_just_started);

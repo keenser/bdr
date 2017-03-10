@@ -33,7 +33,7 @@ order by attrelid, attnum;
  bdr.bdr_queued_commands |      3 | perpetrator            | f            | text                     | t
  bdr.bdr_queued_commands |      4 | command_tag            | f            | text                     | t
  bdr.bdr_queued_commands |      5 | command                | f            | text                     | t
- bdr.bdr_queued_commands |      6 | search_path            | f            | text                     | t
+ bdr.bdr_queued_commands |      6 | search_path            | f            | text                     | f
  bdr.bdr_queued_drops    |      1 | lsn                    | f            | pg_lsn                   | t
  bdr.bdr_queued_drops    |      2 | queued_at              | f            | timestamp with time zone | t
  bdr.bdr_queued_drops    |      3 | dropped_objects        | f            | bdr.dropped_object[]     | t
