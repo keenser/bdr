@@ -231,6 +231,8 @@ bdr_maintain_db_workers(void)
 	char				sysid_str[33];
 	char				our_status;
 	BDRNodeId			myid;
+	List			   *parted_nodes = NIL;
+	ListCell		   *lcparted;
 
 	bdr_make_my_nodeid(&myid);
 
@@ -295,6 +297,11 @@ bdr_maintain_db_workers(void)
 	if (ret != SPI_OK_SELECT)
 		elog(ERROR, "SPI error while querying bdr.bdr_nodes");
 
+	/*
+	 * We may want to use the SPI within the loop that processes
+	 * parted nodes, so copy the matched list of node IDs.
+	 */
+
 	for (i = 0; i < SPI_processed; i++)
 	{
 		/*
@@ -302,29 +309,42 @@ bdr_maintain_db_workers(void)
 		 * everything using that slot.
 		 */
 		HeapTuple	tuple;
-		int			slotoff;
-		bool		found_alive = false;
-		BDRNodeId	node;
+		BDRNodeId  *node;
 		char	   *node_sysid_s;
 
 		bool		isnull;
 
 		tuple = SPI_tuptable->vals[i];
 
+		node = palloc(sizeof(BDRNodeId));
+
 		node_sysid_s = SPI_getvalue(tuple, SPI_tuptable->tupdesc, BDR_NODES_ATT_SYSID);
 
-		if (sscanf(node_sysid_s, UINT64_FORMAT, &node.sysid) != 1)
+		if (sscanf(node_sysid_s, UINT64_FORMAT, &node->sysid) != 1)
 			elog(ERROR, "Parsing sysid uint64 from %s failed", node_sysid_s);
 
-		node.timeline = DatumGetObjectId(
+		node->timeline = DatumGetObjectId(
 			SPI_getbinval(tuple, SPI_tuptable->tupdesc, BDR_NODES_ATT_TIMELINE,
 						  &isnull));
 		Assert(!isnull);
 
-		node.dboid = DatumGetObjectId(
+		node->dboid = DatumGetObjectId(
 			SPI_getbinval(tuple, SPI_tuptable->tupdesc, BDR_NODES_ATT_DBOID,
 						  &isnull));
 		Assert(!isnull);
+
+		parted_nodes = lappend(parted_nodes, (void*)node);
+	}
+
+	/*
+	 * Terminate worker processes and, where possible, drop slots for
+	 * parted peers.
+	 */
+	foreach (lcparted, parted_nodes)
+	{
+		BDRNodeId  *node = lfirst(lcparted);
+		bool		found_alive = false;
+		int			slotoff;
 
 		LWLockAcquire(BdrWorkerCtl->lock, LW_EXCLUSIVE);
 		for (slotoff = 0; slotoff < bdr_max_workers; slotoff++)
@@ -334,6 +354,10 @@ bdr_maintain_db_workers(void)
 
 			/* unused slot */
 			if (w->worker_type == BDR_WORKER_EMPTY_SLOT)
+				continue;
+
+			/* not directly linked to a peer */
+			if (w->worker_type == BDR_WORKER_PERDB)
 				continue;
 
 			/* unconnected slot */
@@ -348,8 +372,7 @@ bdr_maintain_db_workers(void)
 				 * Kill apply workers either if they're running on the
 				 * to-be-killed node or connecting to it.
 				 */
-
-				if (our_status == BDR_NODE_STATUS_KILLED && w->worker_proc->databaseId == node.dboid)
+				if (our_status == BDR_NODE_STATUS_KILLED && w->worker_proc->databaseId == node->dboid)
 				{
 					/*
 					 * NB: It's sufficient to check the database oid, the
@@ -357,24 +380,29 @@ bdr_maintain_db_workers(void)
 					 */
 					kill_proc = true;
 				}
-				else if (bdr_nodeid_eq(&apply->remote_node, &node))
+				else if (bdr_nodeid_eq(&apply->remote_node, node))
 					kill_proc = true;
 			}
 			else if (w->worker_type == BDR_WORKER_WALSENDER)
 			{
 				BdrWalsenderWorker *walsnd = &w->data.walsnd;
 
-				if (our_status == BDR_NODE_STATUS_KILLED && w->worker_proc->databaseId == node.dboid)
+				if (our_status == BDR_NODE_STATUS_KILLED && w->worker_proc->databaseId == node->dboid)
 					kill_proc = true;
-				else if (bdr_nodeid_eq(&walsnd->remote_node, &node))
+				else if (bdr_nodeid_eq(&walsnd->remote_node, node))
 					kill_proc = true;
+			}
+			else
+			{
+				/* unreachable */
+				elog(WARNING, "unrecognised worker type %u", w->worker_type);
 			}
 
 			if (kill_proc)
 			{
 				found_alive = true;
 
-				elog(LOG, "need to kill node: %u type: %u",
+				elog(DEBUG1, "need to terminate process for parted node: pid %u type: %u",
 					 w->worker_pid, w->worker_type);
 				kill(w->worker_pid, SIGTERM);
 			}
@@ -393,10 +421,14 @@ bdr_maintain_db_workers(void)
 			bool we_were_dropped;
 			NameData slot_name_dropped; /* slot of the dropped node */
 
-			/* if a remote node (got) parted, we can easily drop their slot */
-			bdr_slot_name(&slot_name_dropped, &node, myid.dboid);
+			/*
+			 * If a remote node (got) parted, we can easily drop their slot.
+			 * If the local node was dropped, we instead drop all slots for
+			 * peer nodes.
+			 */
+			bdr_slot_name(&slot_name_dropped, node, myid.dboid);
 
-			we_were_dropped = bdr_nodeid_eq(&node, &myid);
+			we_were_dropped = bdr_nodeid_eq(node, &myid);
 
 			LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
 			for (i = 0; i < max_replication_slots; i++)
@@ -412,16 +444,16 @@ bdr_maintain_db_workers(void)
 				if (we_were_dropped &&
 					s->data.database == myid.dboid)
 				{
-					elog(LOG, "need to drop slot %s as we got parted",
+					elog(DEBUG1, "need to drop slot %s as we got parted",
 						 NameStr(s->data.name));
 					drop = lappend(drop, pstrdup(NameStr(s->data.name)));
 				}
 
-				if (strcmp(NameStr(s->data.name),
+				else if (strcmp(NameStr(s->data.name),
 						   NameStr(slot_name_dropped)) == 0)
 				{
-					elog(LOG, "need to drop slot %s of dropped node",
-						 NameStr(s->data.name));
+					elog(DEBUG1, "need to drop slot %s of parted node %s",
+						 NameStr(s->data.name), bdr_nodeid_name(node, true));
 					drop = lappend(drop, pstrdup(NameStr(s->data.name)));
 				}
 			}
@@ -430,7 +462,7 @@ bdr_maintain_db_workers(void)
 			foreach(dc, drop)
 			{
 				char *slot_name = (char *) lfirst(dc);
-				elog(LOG, "dropping slot %s due to node part", slot_name);
+				elog(DEBUG1, "dropping slot %s due to node part", slot_name);
 				ReplicationSlotDrop(slot_name);
 				elog(LOG, "dropped slot %s due to node part", slot_name);
 			}
@@ -441,9 +473,9 @@ bdr_maintain_db_workers(void)
 			 * killed nodes.
 			 */
 		}
-
-		continue;
 	}
+
+	list_free_deep(parted_nodes);
 
 	/* If our own node is dead, don't start new connections to other nodes */
 	if (our_status == BDR_NODE_STATUS_KILLED)
