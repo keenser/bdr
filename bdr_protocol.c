@@ -6,6 +6,13 @@
 #include "bdr.h"
 #include "bdr_internal.h"
 
+/*
+ * Extract a BDR node ID from a wire protocol message.
+ *
+ * The boolean flag for node name is required because, for historical reasons,
+ * some BDR messages send an empty node-name field in node IDs and others do
+ * not.
+ */
 void
 bdr_getmsg_nodeid(StringInfo message, BDRNodeId * const nodeid, bool expect_empty_nodename)
 {
