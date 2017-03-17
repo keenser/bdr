@@ -1625,7 +1625,7 @@ process_queued_ddl_command(HeapTuple cmdtup, bool tx_just_started)
 
 	if (bdr_trace_replay)
 	{
-		elog(LOG, "TRACE: QUEUED_DDL: [%s] with search_path []",
+		elog(LOG, "TRACE: QUEUED_DDL: [%s] with search_path [%s]",
 			 cmdstr, search_path);
 	}
 
