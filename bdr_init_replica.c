@@ -802,7 +802,7 @@ bdr_nodes_set_remote_status_ready(PGconn *conn)
 				 "UPDATE bdr.bdr_nodes\n"
 				 "SET node_status = "BDR_NODE_STATUS_READY_S",\n"
 				 "    node_seq_id = coalesce(\n"
-				 "         -- lowest free ID if one has been released\n"
+				 "         -- lowest free ID if one has been released (right anti-join)\n"
 				 "         (select min(x)\n"
 				 "          from\n"
 				 "            (select * from bdr.bdr_nodes where node_status not in ("BDR_NODE_STATUS_KILLED_S")) n\n"
