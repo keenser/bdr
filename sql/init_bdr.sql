@@ -64,3 +64,7 @@ SELECT
     current_setting('bdrtest.writedb2')
 $f$;
 $DDL$);
+
+-- Run the upgrade function, even though we started with 2.0, so we exercise it
+-- and so we know it won't break things when run on a 2.0 cluster.
+SELECT bdr.upgrade_to_200();

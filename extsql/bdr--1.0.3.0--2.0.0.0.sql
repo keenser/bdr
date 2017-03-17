@@ -613,6 +613,71 @@ REVOKE ALL ON FUNCTION bdr.get_transaction_replorigin(xid) FROM public;
 COMMENT ON FUNCTION bdr.get_transaction_replorigin(xid)
 IS 'get the replication origin id for a given transaction if still known';
 
+--
+-- When upgrading an existing cluster we must assign node sequence IDs.
+--
+-- We can't do that safely during the upgrade script run since the changes
+-- won't get replicated, so we have do it as a user-initiated post-upgrade
+-- step.
+--
+CREATE FUNCTION bdr.upgrade_to_200() RETURNS void LANGUAGE plpgsql AS
+$$
+DECLARE
+  errd text;
+  dofail boolean := false;
+  n record;
+BEGIN
+  -- Refuse to run if it looks like there might be a dangling 'i' node or
+  -- something.
+  errd := 'One or more nodes have status other than expected BDR_NODE_STATUS_READY (r) or BDR_NODE_STATUS_KILLED (k): ';
+  FOR n IN
+ 	  SELECT * FROM bdr.bdr_nodes WHERE node_status NOT IN (
+      bdr.node_status_to_char('BDR_NODE_STATUS_READY'),
+      bdr.node_status_to_char('BDR_NODE_STATUS_KILLED')
+    )
+  LOOP
+    errd := errd || 'node % has status % (%);', n.node_name, n.node_status;
+    dofail := true;
+  END LOOP;
+  IF dofail THEN
+    RAISE USING
+        MESSAGE = 'cannot upgrade BDR extension because some nodes are not ready',
+        DETAIL = errd,
+        HINT = 'Make sure no nodes are joining or partially joined in bdr.bdr_nodes',
+        ERRCODE = 'object_not_in_prerequisite_state';
+  END IF;
+
+  -- if all nodes look sensible, generate sequence IDs, skipping over any
+  -- already-assigned values, and start counting from the lowest assigned
+  -- value. In theory there shouldn't be one, but we don't actively stop
+  -- users joining nodes when some other nodes have no node_seq_id, so there
+  -- could be...
+  UPDATE bdr.bdr_nodes
+  SET node_seq_id = seqid
+  FROM (
+    SELECT
+      n2.node_sysid, n2.node_timeline, n2.node_dboid,
+      (
+        row_number()
+        OVER (ORDER BY n2.node_sysid, n2.node_timeline, n2.node_dboid)
+        +
+        (
+          SELECT max(n3.node_seq_id)
+          FROM bdr.bdr_nodes n3
+          WHERE n3.node_status NOT IN (bdr.node_status_to_char('BDR_NODE_STATUS_KILLED'))
+        )
+      ) AS node_seq_id
+    FROM bdr.bdr_nodes n2
+    WHERE n2.node_status NOT IN (bdr.node_status_to_char('BDR_NODE_STATUS_KILLED'))
+    AND n2.node_seq_id IS NULL
+  ) n(sysid, timeline, dboid, seqid)
+  WHERE (node_sysid, node_timeline, node_dboid) =
+	(sysid, timeline, dboid)
+  AND node_seq_id IS NULL;
+
+END;
+$$;
+
 RESET bdr.permit_unsafe_ddl_commands;
 RESET bdr.skip_ddl_replication;
 RESET search_path;

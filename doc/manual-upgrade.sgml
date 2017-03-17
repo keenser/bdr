@@ -76,15 +76,18 @@
    <title>Online upgrade</>
 
    <sect3>
-    <title>Upgrading BDR 1.0 to BDR 2.0 on Postgres-BDR 9.4</>
+    <title>Online upgrade limitations</>
 
     <para>
-     The BDR 1.0 to 2.0 upgrade on Postgres-BDR 9.4 should be performed as a
-     simple in-place upgrade of the BDR extension. It is necessary that all
-     nodes be upgraded at roughly the same time, because the 1.0 and 2.0
-     catalogs are not entirely compatible so nodes cannot part or join while the
-     BDR group contains a mixture of 1.0 and 2.0 nodes, DDL replication won't
-     work, etc.
+     While the 1.0 to 2.0 upgrade does not require extended downtime, a restart
+     of each node is absolutely <emphasis>required</>.
+    </para>
+
+    <para>
+     It is recommended that all nodes be upgraded at roughly the same time,
+     because the 1.0 and 2.0 catalogs are not entirely compatible so nodes
+     cannot part or join while the BDR group contains a mixture of 1.0 and 2.0
+     nodes, DDL replication won't work, etc.
     </para>
 
     <para>
@@ -99,15 +102,6 @@
     </para>
 
     <para>
-     It is not necessary to actually shut down each node prior to upgrading the
-     BDR packages or install BDR 2.0 from source code. The new extension can be
-     installed "live". However, each node <emphasis>must</> be restarted after
-     installing BDR 2.0. Do <emphasis>not</> try to <literal>ALTER EXTENSION bdr
-     UPDATE</>; BDR will do that for its self when it starts up again and
-     notices the upgrade.
-    </para>
-
-    <para>
      A mixed BDR 1.0 and BDR 2.0 group can be operated safely for a transition
      period so long as no nodes need to part or join, and no DDL needs to be
      performed. (It is <emphasis>not</> safe to mix in 2.0 nodes running on
@@ -119,6 +113,39 @@
      If you require such support it is possible to add it as an update to BDR
      1.0.  <ulink url="http://2ndquadrant.com">Contact 2ndQuadrant</> if this
      important to your business.
+    </para>
+
+   </sect3>
+
+   <sect3 id="upgrade-20-upgrade-extension" xreflabel="Upgrading the BDR extension">
+    <title>Upgrading the BDR extension from 1.x to 2.0</>
+
+    <para>
+     To online-upgrade the BDR extension on each node, simply install the 2.0
+     extension into your PostgreSQL instance the same way you installed 1.0.
+     This may be from source code, rpm/deb package, etc. Then <emphasis>restart
+     PostgreSQL</>. Do <emphasis>NOT</> attempt to <literal>ALTER EXTENSION bdr
+     UPDATE</>. 
+    </para>
+
+    <para>
+     BDR will notice the new extension files and update the extension. To confirm,
+     check the output of:
+     <programlisting>
+       SELECT extname, extversion FROM pg_extension WHERE extname = 'bdr'
+     </>
+     and
+     <programlisting>
+       SELECT bdr.vdr_version();
+     </>
+    </para>
+
+    <para>
+     Once all nodes are upgraded, run the post-upgrade script on <emphasis>one</>
+     node. It does not matter which node.
+     <programlisting>
+       SELECT bdr.upgrade_to_200();
+     </>
     </para>
 
    </sect3>
