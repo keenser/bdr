@@ -661,11 +661,11 @@ BEGIN
         row_number()
         OVER (ORDER BY n2.node_sysid, n2.node_timeline, n2.node_dboid)
         +
-        (
+        coalesce((
           SELECT max(n3.node_seq_id)
           FROM bdr.bdr_nodes n3
           WHERE n3.node_status NOT IN (bdr.node_status_to_char('BDR_NODE_STATUS_KILLED'))
-        )
+        ), 0)
       ) AS node_seq_id
     FROM bdr.bdr_nodes n2
     WHERE n2.node_status NOT IN (bdr.node_status_to_char('BDR_NODE_STATUS_KILLED'))
