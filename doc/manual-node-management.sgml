@@ -153,7 +153,7 @@
  </sect1>
 
  <sect1 id="node-management-removing" xreflabel="Removing a node">
-  <title>Removing a node</title>
+  <title>Parting (removing) a node</title>
 
   <para>
    Because BDR can recover from extended node outages it is
