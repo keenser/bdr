@@ -1,3 +1,8 @@
+#!/usr/bin/env perl
+#
+# This test exercises BDR's physical copy mechanism for node joins,
+# bdr_init_copy .
+#
 use strict;
 use warnings;
 use Cwd;
@@ -83,7 +88,7 @@ command_ok(
 
 # ... but does replication actually work? Is this a live, working cluster?
 my $bdr_version = $node_b->safe_psql($dbname, 'SELECT bdr.bdr_version()');
-diag "BDR version $bdr_version";
+note "BDR version $bdr_version";
 
 $node_b->safe_psql($dbname, 'SELECT bdr.bdr_node_join_wait_for_ready()');
 
@@ -98,11 +103,11 @@ my $status_b = $node_b->safe_psql($dbname, 'SELECT node_name, bdr.node_status_fr
 is($status_a, "node-a|BDR_NODE_STATUS_READY\nnode-b|BDR_NODE_STATUS_READY", 'node A sees both nodes as ready');
 is($status_b, "node-a|BDR_NODE_STATUS_READY\nnode-b|BDR_NODE_STATUS_READY", 'node B sees both nodes as ready');
 
-diag "Taking ddl lock manually";
+note "Taking ddl lock manually";
 
 $node_a->safe_psql($dbname, "SELECT bdr.acquire_global_lock('write')");
 
-diag "Creating a table...";
+note "Creating a table...";
 
 $node_b->safe_psql($dbname, q{
 SELECT bdr.bdr_replicate_ddl_command($DDL$

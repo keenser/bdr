@@ -1,11 +1,24 @@
+#!/usr/bin/env perl
+#
+# This test was written to exercise a duplicate-rows replication issue that
+# turned out to relate to confusion about whether the confirmed_flush_lsn and
+# START_REPLICATION lsn were inclusive or exclusive.
+#
+# It is retained here to prevent regressions on this issue and because it
+# provides some coverage of replication crash and recovery.
+#
+# See:
+#     d96d8bb5 Use end-of-commit LSN in progress tracking
+#
 use strict;
 use warnings;
+use lib "t/";
 use Cwd;
 use Config;
 use PostgresNode;
 use TestLib;
-use Test::More tests => 8;
-require "t/utils/common.pl";
+use utils::nodemanagement;
+use Test::More tests => 14;
 
 my $query = q[
 select coalesce(node_name, bdr.bdr_get_local_node_name()) AS origin_node_name, x
@@ -17,13 +30,11 @@ left join bdr.bdr_nodes on (remote_sysid, remote_timeline, remote_dboid) = (node
 order by x;
 ];
 
-my $tempdir = TestLib::tempdir;
-
 my $node_a = get_new_node('node_a');
-create_bdr_group($node_a);
+initandstart_bdr_group($node_a);
 
 my $node_b = get_new_node('node_b');
-startandjoin_node($node_b, $node_a);
+initandstart_logicaljoin_node($node_b, $node_a);
 
 my @nodes = ($node_a, $node_b);
 
@@ -43,6 +54,19 @@ node_b|node_b];
 is($node_a->safe_psql('bdr_test', $query), $expected, 'results node A before restart B');
 is($node_b->safe_psql('bdr_test', $query), $expected, 'results node B before restart B');
 
+#
+# We've stored the end of the commit record of the last replayed xact into the
+# replication identifier now. If the other node crashes, it'll lose any standby
+# status updates and keepalive responses we might've sent to advance our
+# confirmed_flush_lsn past that point. So when we START_REPLICATION again it'll
+# use our supplied LSN from the local replication origin as passed to
+# START_REPLICATION instead of the further-ahead LSN stored on the upstream
+# slot.
+#
+# Prior to BDR 2.0 and d96d8bb5, we used to store the commit start lsn on
+# our replication origin. So we'd ask to replay the last commit again
+# in this situation and get a duplicate commit.
+#
 $node_b->stop('immediate');
 $node_b->start;
 
@@ -55,9 +79,9 @@ $node_a->start;
 # to make sure a is ready for queries again:
 sleep(1);
 
-diag "taking final DDL lock";
+note "taking final DDL lock";
 $node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
-diag "done, checking final state";
+note "done, checking final state";
 
 $expected = q[node_a|node_a
 node_b|node_b];

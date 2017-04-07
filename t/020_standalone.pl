@@ -1,3 +1,8 @@
+#!/usr/bin/env perl
+#
+# Tests that operate on a single BDR node stand-alone, i.e.
+# a BDR group of size 1.
+#
 use strict;
 use warnings;
 use Cwd;
@@ -5,8 +10,6 @@ use Config;
 use PostgresNode;
 use TestLib;
 use Test::More tests => 13;
-
-my $tempdir = TestLib::tempdir;
 
 my $node_a = get_new_node('node_a');
 

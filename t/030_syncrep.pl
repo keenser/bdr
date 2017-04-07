@@ -1,12 +1,4 @@
-use strict;
-use warnings;
-use Cwd;
-use Config;
-use PostgresNode;
-use TestLib;
-use Test::More tests => 27;
-require "t/utils/common.pl";
-
+#!/usr/bin/env perl
 #
 # This test creates a 4-node group with two mutual sync-rep pairs.
 # 
@@ -22,17 +14,26 @@ require "t/utils/common.pl";
 # and B <==> D too.
 #
 
-my $tempdir = TestLib::tempdir;
+use strict;
+use warnings;
+use lib 't/';
+use Cwd;
+use Config;
+use PostgresNode;
+use TestLib;
+use Test::More tests => 47;
+use utils::nodemanagement;
+
 
 #-------------------------------------
 # Setup and worker names
 #-------------------------------------
 
 my $node_a = get_new_node('node_a');
-create_bdr_group($node_a);
+initandstart_bdr_group($node_a);
 
 my $node_b = get_new_node('node_b');
-startandjoin_node($node_b, $node_a);
+initandstart_logicaljoin_node($node_b, $node_a);
 
 # application_name should be the same as the node name
 is($node_a->safe_psql('postgres', q[SELECT application_name FROM pg_stat_activity WHERE application_name <> 'psql' AND application_name NOT LIKE '%init' ORDER BY application_name]),
@@ -44,10 +45,10 @@ node_b:send],
 
 # Create the other nodes
 my $node_c = get_new_node('node_c');
-startandjoin_node($node_c, $node_a);
+initandstart_logicaljoin_node($node_c, $node_a);
 
 my $node_d = get_new_node('node_d');
-startandjoin_node($node_d, $node_c);
+initandstart_logicaljoin_node($node_d, $node_c);
 
 # other apply workers should be visible now
 is($node_a->safe_psql('postgres', q[SELECT application_name FROM pg_stat_activity WHERE application_name <> 'psql' AND application_name NOT LIKE '%init' ORDER BY application_name]),
@@ -87,7 +88,7 @@ $node_b->start;
 # Reconfigure to 1-safe 1-sync
 #-------------------------------------
 
-diag "reconfiguring into synchronous pairs A<=>B, C<=>D (1-safe 1-sync)";
+note "reconfiguring into synchronous pairs A<=>B, C<=>D (1-safe 1-sync)";
 $node_a->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '"node_b:send"']);
 $node_b->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '"node_a:send"']);
 
@@ -103,10 +104,10 @@ for my $node (@nodes) {
 is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 1-1 B+')]), 0, 'A: 1-safe 1-sync B-up');
 
 # but with node B down, node A should refuse to confirm commit
-diag "stopping B";
+note "stopping B";
 $node_b->stop;
 my $timed_out;
-diag "inserting on A when B is down; expect psql timeout in 10s";
+note "inserting on A when B is down; expect psql timeout in 10s";
 $node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 1-1 B-')], timeout => 10, timed_out => \$timed_out);
 ok($timed_out, 'A: 1-safe 1-sync B-down times out');
 
@@ -122,7 +123,7 @@ is($node_c->safe_psql('bdr_test', q[SELECT 1 FROM t WHERE x = 'C: 1-1 B-']), '1'
 is($node_a->safe_psql('bdr_test', q[SELECT 1 FROM t WHERE x = 'C: 1-1 B-']), '1', 'C xact visible on A');
 is($node_d->safe_psql('bdr_test', q[SELECT 1 FROM t WHERE x = 'C: 1-1 B-']), '1', 'C xact visible on D');
 
-diag "starting B";
+note "starting B";
 $node_b->start;
 
 # Because Pg commits a txn in sync rep before checking sync, once B comes back up
@@ -138,7 +139,7 @@ is($node_a->safe_psql('bdr_test', q[SELECT 1 FROM t WHERE x = 'A: 1-1 B-']), '1'
 # Reconfigure to 2-safe 2-sync
 #-------------------------------------
 
-diag "reconfiguring into 2-safe 2-sync A[B,C], B[A,D] C[A,D] D[B,C]";
+note "reconfiguring into 2-safe 2-sync A[B,C], B[A,D] C[A,D] D[B,C]";
 $node_a->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '2 ("node_b:send", "node_c:send")']);
 $node_b->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '2 ("node_a:send", "node_d:send")']);
 
@@ -153,21 +154,21 @@ for my $node (@nodes) {
 is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-2 B+ C+')]), 0, 'A: 2-safe 2-sync B up C up');
 
 # but with node B down, node A should refuse to confirm commit
-diag "stopping B";
+note "stopping B";
 $node_b->stop;
-diag "inserting on A when B is down; expect psql timeout in 10s";
+note "inserting on A when B is down; expect psql timeout in 10s";
 $node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-2 B- C+')], timeout => 10, timed_out => \$timed_out);
 ok($timed_out, '2-safe 2-sync on A times out if B is down');
-diag "starting B";
+note "starting B";
 $node_b->start;
 
 # same with node-C since we're 2-safe
-diag "stopping C";
+note "stopping C";
 $node_c->stop;
-diag "inserting on A when C is down; expect psql timeout in 10s";
+note "inserting on A when C is down; expect psql timeout in 10s";
 $node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-2 B+ C-')], timeout => 10, timed_out => \$timed_out);
 ok($timed_out, '2-safe 2-sync on A times out if C is down');
-diag "starting C";
+note "starting C";
 $node_c->start;
 
 
@@ -175,7 +176,7 @@ $node_c->start;
 # Reconfigure to 2-safe 2-sync
 #-------------------------------------
 #
-diag "reconfiguring into 1-safe 2-sync A[B,C], B[A,D] C[A,D] D[B,C]";
+note "reconfiguring into 1-safe 2-sync A[B,C], B[A,D] C[A,D] D[B,C]";
 
 $node_a->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '1 ("node_b:send", "node_c:send")']);
 $node_b->safe_psql('bdr_test', q[ALTER SYSTEM SET synchronous_standby_names = '1 ("node_a:send", "node_d:send")']);
@@ -191,21 +192,21 @@ for my $node (@nodes) {
 is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('a: 2-1 B+ C+')]), 0, '2-sync 1-safe B up C up');
 
 # or when one, but not both, nodes are down
-diag "stopping B";
+note "stopping B";
 $node_b->stop;
 is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-1 B- C+')]), 0, '2-sync 1-safe B down C up');
 
-diag "stopping C";
+note "stopping C";
 $node_c->stop;
 $node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('nA: 2-1 B- C-')], timeout => 10, timed_out => \$timed_out);
 ok($timed_out, '2-sync 1-safe B down C down times out');
 
-diag "starting B";
+note "starting B";
 $node_b->start;
 
 is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-1 B+ C-')]), 0,'2-sync 1-safe B up C down');
 
-diag "starting C";
+note "starting C";
 $node_c->start;
 
 is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('a: 2-1 B+ C+ 2')]), 0, '2-sync 1-safe B up C up after');
@@ -214,9 +215,9 @@ is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('a: 2-1 B+ C+ 2')]), 0, 
 # Consistent?
 #-------------------------------------
 
-diag "taking final DDL lock";
+note "taking final DDL lock";
 $node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
-diag "done, checking final state";
+note "done, checking final state";
 
 my $expected = q[node_a|0-0 B-
 node_a|0-0 B+
