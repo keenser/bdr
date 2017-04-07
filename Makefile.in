@@ -73,6 +73,14 @@ OBJS = \
 	bdr_supervisor.o \
 	bdr_upgrade.o
 
+ifdef RUN_FAILING_TESTS
+# Empty if there aren't any expected-to-fail tests at the moment.
+FAILING_TESTS :=
+else
+# By default we don't run failing tests, this will always be empty.
+FAILING_TESTS :=
+endif
+
 ifeq ($(HAVE_SEQAM),1)
 OBJS += bdr_seq.o bdr_ddlrep_deparse.o
 REGRESS_COMPAT :=
@@ -271,6 +279,7 @@ REGRESSCHECKS= \
 	pgreplicationslots \
 	seq2 \
 	read_only \
+	$(FAILING_TESTS) \
 	$(DDLTESTS) \
 	dml_basic \
 	dml_contrib \
