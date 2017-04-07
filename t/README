@@ -5,3 +5,5 @@ This lets us do basic BDR multi-node testing and things like bdr_init_copy
 testing.
 
 More sophisticated testing is managed externally.
+
+See ../README.tests for guidance on writing tests etc.
