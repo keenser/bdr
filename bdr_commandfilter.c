@@ -790,7 +790,25 @@ bdr_commandfilter(Node *parsetree,
 	 * calls might require transaction access.
 	 */
 	if (nodeTag(parsetree) == T_TransactionStmt)
+	{
+		TransactionStmt *stmt = (TransactionStmt*)parsetree;
+		if (in_bdr_replicate_ddl_command &&
+			(stmt->kind == TRANS_STMT_COMMIT ||
+			 stmt->kind == TRANS_STMT_ROLLBACK ||
+			 stmt->kind == TRANS_STMT_PREPARE))
+		{
+			/*
+			 * It's unsafe to let bdr_replicate_ddl_command run transaction
+			 * control commands via SPI that might end the current xact, since
+			 * it's being called from the fmgr/executor who'll expect a valid
+			 * transaction context on return.
+			 */
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("cannot COMMIT, ROLLBACK or PREPARE TRANSACTION in bdr_replicate_ddl_command")));
+		}
 		goto done;
+	}
 
 	/* don't filter if this database isn't using bdr */
 	if (!bdr_is_bdr_activated_db(MyDatabaseId))

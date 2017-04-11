@@ -8,7 +8,7 @@ use Carp;
 use PostgresNode;
 use TestLib;
 use threads;
-use Test::More tests => 18;
+use Test::More tests => 23;
 use utils::nodemanagement;
 
 # Create an upstream node and bring up bdr
@@ -54,13 +54,17 @@ $ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ ALTER TABLE pub
 $error_msg = "ALTER TABLE ... ALTER COLUMN TYPE may only affect UNLOGGED or TEMPORARY tables when BDR is active; $table_name is a regular table";
 ddl_fail($node_b,$ddl_statement,$error_msg,"ALTER TABLE...ALTER COLUMN TYPE");
 
-TODO: {
-    # bug https://github.com/2ndQuadrant/bdr-private/issues/22
-    todo_skip 'crashes the server due to BDR bug', 1;
-    $ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ BEGIN; CREATE TABLE public.test_commit(id integer);COMMIT; \$DDL\$);};
-    $error_msg = "Some psql error message";
-    ddl_fail($node_b,$ddl_statement,$error_msg,"Multistatement ddl with embedded COMMIT");
-};
+$ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ BEGIN; CREATE TABLE public.test_commit(id integer);COMMIT; \$DDL\$);};
+$error_msg = "cannot COMMIT, ROLLBACK or PREPARE TRANSACTION in bdr_replicate_ddl_command";
+ddl_fail($node_b,$ddl_statement,$error_msg,"Multistatement ddl with embedded COMMIT");
+
+$ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ ROLLBACK; \$DDL\$);};
+$error_msg = "cannot COMMIT, ROLLBACK or PREPARE TRANSACTION in bdr_replicate_ddl_command";
+ddl_fail($node_b,$ddl_statement,$error_msg,"Multistatement ddl with embedded ROLLBACK");
+
+$ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ PREPARE TRANSACTION 'x'; \$DDL\$);};
+$error_msg = "cannot COMMIT, ROLLBACK or PREPARE TRANSACTION in bdr_replicate_ddl_command";
+ddl_fail($node_b,$ddl_statement,$error_msg,"Multistatement ddl with embedded PREPARE TRANSACTION");
 
 sub ddl_fail {
     my ($node, $ddl_statement, $error_msg, $test_case) = @_;
