@@ -70,6 +70,7 @@ static char		   *data_dir = NULL;
 static char			pid_file[MAXPGPATH];
 static time_t		start_time;
 static VerbosityLevelEnum	verbosity = VERBOSITY_NORMAL;
+static char		   *log_file_name = "bdr_init_copy_postgres.log";
 
 /* defined as static so that die() can close them */
 static PGconn		*local_conn = NULL;
@@ -77,10 +78,18 @@ static PGconn		*remote_conn = NULL;
 
 static void signal_handler(int sig);
 static void usage(void);
+static void BDR_NORETURN finish_die();
 static void BDR_NORETURN die(const char *fmt,...)
 __attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
 static void print_msg(VerbosityLevelEnum level, const char *fmt,...)
 __attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 3)));
+static void error_backoff(PGconn **conn, PGresult *res, const char * connstr, int *backoff_millis, const char *fmt,...)
+__attribute__((format(PG_PRINTF_ATTRIBUTE, 5, 6)));
+
+#define RETRIABLE_XACT 1
+#define RETRIABLE_CONN 2
+#define RETRIABLE_NO 0
+static int retriable(PGconn *conn, PGresult *res);
 
 static int BDR_WARN_UNUSED run_pg_ctl(const char *arg);
 static void run_basebackup(const char *remote_connstr, const char *data_dir);
@@ -90,7 +99,7 @@ static void wait_postmaster_shutdown(void);
 
 static char *validate_replication_set_input(char *replication_sets);
 
-static void initialize_node_entry(PGconn *conn, NodeInfo *ni, char *node_name,
+static void initialize_node_entry(PGconn **conn, NodeInfo *ni, char *node_name,
 								  Oid dboid, char *remote_connstr, char *local_connstr);
 static void remove_unwanted_files(void);
 static void remove_unwanted_data(PGconn *conn);
@@ -174,6 +183,8 @@ main(int argc, char **argv)
 	bool		use_existing_data_dir;
 	int			pg_ctl_ret,
 				logfd;
+#define PG_CTL_CMD_BUF_SIZE 1000
+	char pg_ctl_cmd_buf[PG_CTL_CMD_BUF_SIZE];
 
 	static struct option long_options[] = {
 		{"node-name", required_argument, NULL, 'n'},
@@ -186,6 +197,7 @@ main(int argc, char **argv)
 		{"local-host", required_argument, NULL, 3},
 		{"local-port", required_argument, NULL, 4},
 		{"local-user", required_argument, NULL, 5},
+		{"log-file", required_argument, NULL, 'l'},
 		{"postgresql-conf", required_argument, NULL, 6},
 		{"hba-conf", required_argument, NULL, 7},
 		{"recovery-conf", required_argument, NULL, 8},
@@ -213,7 +225,7 @@ main(int argc, char **argv)
 	}
 
 	/* Option parsing and validation */
-	while ((c = getopt_long(argc, argv, "D:d:h:n:p:sU:v", long_options, &optindex)) != -1)
+	while ((c = getopt_long(argc, argv, "D:d:h:l:n:p:sU:v", long_options, &optindex)) != -1)
 	{
 		switch (c)
 		{
@@ -225,6 +237,11 @@ main(int argc, char **argv)
 				break;
 			case 'h':
 				remote_dbhost = pg_strdup(optarg);
+				break;
+			case 'l':
+				if (strchr(optarg, '\'') != NULL)
+					die(_("log file name may not contain a single quote character"));
+				log_file_name = pg_strdup(optarg);
 				break;
 			case 'n':
 				node_name = pg_strdup(optarg);
@@ -311,19 +328,19 @@ main(int argc, char **argv)
 	if (!local_connstr || !strlen(local_connstr))
 		die(_("Local connection must be specified.\n"));
 
-	logfd = open("bdr_init_copy_postgres.log", O_CREAT | O_RDWR | O_TRUNC,
+	logfd = open(log_file_name, O_CREAT | O_RDWR | O_TRUNC,
 				 S_IRUSR | S_IWUSR);
 	if (logfd == -1)
 	{
-		die(_("Creating bdr_init_copy_postgres.log failed: %s"),
-				strerror(errno));
+		die(_("Creating log file '%s' failed: %s"),
+				log_file_name, strerror(errno));
 	}
 	/* Safe to close() unchecked, we didn't write */
 	(void) close(logfd);
 
 	print_msg(VERBOSITY_NORMAL, _("%s: starting ...\n"), progname);
 
-	/* Read the remote server indetification. */
+	/* Read the remote server identification. */
 	print_msg(VERBOSITY_NORMAL,
 			  _("Getting remote server identification ...\n"));
 	remote_info = get_remote_info(remote_connstr);
@@ -370,7 +387,12 @@ main(int argc, char **argv)
 	print_msg(VERBOSITY_NORMAL,
 			  _("Updating BDR configuration on the remote node:\n"));
 
-	/* Initialize remote node. */
+	/*
+	 * Initialize remote node.
+	 *
+	 * The remote might have multiple BDR-enabled DBs, so we
+	 * need to perform setup for each one.
+	 */
 	for (i = 0; i < remote_info->numdbs; i++)
 	{
 		char *dbname = remote_info->dbnames[i];
@@ -394,7 +416,7 @@ main(int argc, char **argv)
 		 */
 		print_msg(VERBOSITY_NORMAL,
 				  _(" %s: creating node entry for local node ...\n"), dbname);
-		initialize_node_entry(remote_conn, &node_info, node_name,
+		initialize_node_entry(&remote_conn, &node_info, node_name,
 							  remote_info->dboids[i],
 							  db_remote_connstr, db_local_connstr);
 
@@ -465,9 +487,12 @@ main(int argc, char **argv)
 	 * immediately exits due to issues like port conflicts. We'll detect that
 	 * in wait_postmaster_connection().
 	 */
-	pg_ctl_ret = run_pg_ctl("start -l \"bdr_init_copy_postgres.log\" -o \"-c shared_preload_libraries=''\"");
+	snprintf(&pg_ctl_cmd_buf[0], PG_CTL_CMD_BUF_SIZE,
+		"start -l \'%s\' -o \"-c shared_preload_libraries=''\"",
+		log_file_name);
+	pg_ctl_ret = run_pg_ctl(pg_ctl_cmd_buf);
 	if (pg_ctl_ret != 0)
-		die(_("postgres startup for restore point catchup failed with %d. See bdr_init_copy_postgres.log."), pg_ctl_ret);
+		die(_("postgres startup for restore point catchup failed with %d. See '%s'."), pg_ctl_ret, log_file_name);
 
 	wait_postmaster_connection(local_connstr);
 
@@ -500,7 +525,7 @@ main(int argc, char **argv)
 	/* Stop Postgres so we can reset system id and start it with BDR loaded. */
 	pg_ctl_ret = run_pg_ctl("stop");
 	if (pg_ctl_ret != 0)
-		die(_("postgres stop after restore point catchup failed with %d. See bdr_init_copy_postgres.log."), pg_ctl_ret);
+		die(_("postgres stop after restore point catchup failed with %d. See '%s'."), pg_ctl_ret, log_file_name);
 	wait_postmaster_shutdown();
 
 	/*
@@ -524,9 +549,11 @@ main(int argc, char **argv)
 	print_msg(VERBOSITY_NORMAL,
 			  _("Initializing BDR on the local node:\n"));
 
-	pg_ctl_ret = run_pg_ctl("start -l \"bdr_init_copy_postgres.log\"");
+	snprintf(&pg_ctl_cmd_buf[0], PG_CTL_CMD_BUF_SIZE,
+		"start -l '%s'", log_file_name);
+	pg_ctl_ret = run_pg_ctl(pg_ctl_cmd_buf);
 	if (pg_ctl_ret != 0)
-		die(_("postgres restart with bdr enabled failed with %d. See bdr_init_copy_postgres.log."), pg_ctl_ret);
+		die(_("postgres restart with bdr enabled failed with %d. See '%s'."), pg_ctl_ret, log_file_name);
 	wait_postmaster_connection(local_connstr);
 
 	for (i = 0; i < remote_info->numdbs; i++)
@@ -578,7 +605,7 @@ main(int argc, char **argv)
 		print_msg(VERBOSITY_NORMAL, _("Stopping the local node ...\n"));
 		pg_ctl_ret = run_pg_ctl("stop");
 		if (pg_ctl_ret != 0)
-			die(_("Stopping postgres after successful join failed with %d. See bdr_init_copy_postgres.log."), pg_ctl_ret);
+			die(_("Stopping postgres after successful join failed with %d. See '%s'."), pg_ctl_ret, log_file_name);
 		wait_postmaster_shutdown();
 	}
 
@@ -602,6 +629,7 @@ usage(void)
 	printf(_("                          can be either empty/non-existing directory,\n"));
 	printf(_("                          or directory populated using pg_basebackup -X stream\n"));
 	printf(_("                          command\n"));
+	printf(_("  -l, --log-file          log file name, default bdr_init_copy_postgres.log"));
 	printf(_("  -n, --node-name=NAME    name of the newly created node\n"));
 	printf(_("  --replication-sets=SETS comma separated list of replication set names to use\n"));
 	printf(_("  -s, --stop              stop the server once the initialization is done\n"));
@@ -625,17 +653,9 @@ usage(void)
 	printf(_("  --local-user=NAME       connect as specified database user to the local node\n"));
 }
 
-/*
- * Print error and exit.
- */
 static void
-die(const char *fmt,...)
+finish_die()
 {
-	va_list argptr;
-	va_start(argptr, fmt);
-	vfprintf(stderr, fmt, argptr);
-	va_end(argptr);
-
 	if (local_conn)
 		PQfinish(local_conn);
 	if (remote_conn)
@@ -653,6 +673,20 @@ die(const char *fmt,...)
 }
 
 /*
+ * Print error and exit.
+ */
+static void
+die(const char *fmt,...)
+{
+	va_list argptr;
+	va_start(argptr, fmt);
+	vfprintf(stderr, fmt, argptr);
+	va_end(argptr);
+
+	finish_die();
+}
+
+/*
  * Print message to stdout and flush
  */
 static void
@@ -666,6 +700,131 @@ print_msg(VerbosityLevelEnum level, const char *fmt,...)
 		va_end(argptr);
 		fflush(stdout);
 	}
+}
+
+static int
+retriable(PGconn *conn, PGresult *res)
+{
+	const char *sqlstate;
+
+	if (PQstatus(conn) != CONNECTION_OK)
+		return RETRIABLE_CONN;
+	
+	/* https://www.postgresql.org/docs/current/static/errcodes-appendix.html */
+	sqlstate = PQresultErrorField(res, PG_DIAG_SQLSTATE);
+
+	/* Transaction aborts, deadlocks, etc */
+	if (strncmp(sqlstate, "40", 2) == 0)
+		return RETRIABLE_XACT;
+	/* query cancel */
+	if (strcmp(sqlstate, "57014") == 0)
+		return RETRIABLE_XACT;
+	/* lock not available (including DDL lock or NOWAIT locks) */
+	if (strcmp(sqlstate, "55P03") == 0)
+		return RETRIABLE_XACT;
+	/* connection issues */
+	if (strncmp(sqlstate, "08", 2) == 0)
+		return RETRIABLE_CONN;
+	/* OOM, disk full, etc */
+	if (strncmp(sqlstate, "53", 2) == 0)
+		return RETRIABLE_CONN;
+	/* admin shutdown, crash shutdown, cannot connect now */
+	if (strcmp(sqlstate, "57P01") == 0 || strcmp(sqlstate, "57P02") == 0 || strcmp(sqlstate, "57P03") == 0)
+		return RETRIABLE_CONN;
+
+	return RETRIABLE_NO;
+}
+
+/*
+ * Handle an error by advancing a back-off timer if the error
+ * is retriable, or die()ing if it isn't.
+ *
+ * Aborts the transaction if one is in progress. Does not start a new one.
+ *
+ * May re-connect to the connection if it has dropped, using the supplied
+ * connection string.
+ *
+ * The PGresult is cleared.
+ */
+static void
+error_backoff(PGconn **conn, PGresult *res, const char *connstr, int *backoff_millis, const char *fmt,...)
+{
+	const int		max_backoff_millis = 120 * 1000;
+
+	va_list argptr;
+	va_start(argptr, fmt);
+	vfprintf(stdout, fmt, argptr);
+	va_end(argptr);
+	fflush(stdout);
+
+	switch (retriable(*conn, res))
+	{
+		case RETRIABLE_XACT:
+		{
+			PQclear(res);
+
+			res = PQexec(*conn, "ROLLBACK");
+			/* rollback OK */
+			if (PQresultStatus(res) == PGRES_COMMAND_OK)
+			{
+				PQclear(res);
+				goto backoff;
+			}
+			/* 25P01: there is no transaction in progress */
+			if (strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), "25P01") == 0)
+			{
+				PQclear(res);
+				goto backoff;
+			}
+
+			/* deliberately fall through to RETRIABLE_CONN if we can't ROLLBACK */
+		}
+		case RETRIABLE_CONN:
+		{
+			PQclear(res);
+			PQfinish(*conn);
+			print_msg(VERBOSITY_VERBOSE, _("re-connecting to database and retrying..."));
+			*conn = PQconnectdb(connstr);
+			print_msg(VERBOSITY_VERBOSE, "\n");
+			if (PQstatus(*conn) != CONNECTION_OK)
+			{
+				/*
+				 * Assume we were connected previously, so it must be retriable
+				 * unless something drastic happened like the host being removed.
+				 * Return to let the caller fail again and call back into this
+				 * function.
+				 *
+				 * libpq offers no supported way to obtain the SQLSTATE for a
+				 * PGconn; see
+				 *
+				 * - http://stackoverflow.com/q/23349086/398670
+				 * - http://stackoverflow.com/q/15779991/398670
+				 *
+				 * The first query on the conn we return will fail, bringing
+				 * the caller right back to reconnect.
+				 */
+				print_msg(VERBOSITY_NORMAL,_("re-connection to database failed: %s, connection string was: %s\n"), PQerrorMessage(*conn), connstr);
+			}
+			goto backoff;
+		}
+
+		case RETRIABLE_NO:
+		{
+			PQclear(res);
+			finish_die();
+		}
+	}
+
+	die("unreachable");
+
+backoff:
+	/* ignore EINTR, we're just going to retry anyway */
+	print_msg(VERBOSITY_VERBOSE, _("backing off for %.2fs and retrying"),
+		((float)*backoff_millis)/1000);
+	(void) usleep(*backoff_millis * 1000);
+	*backoff_millis = (int)((float)*backoff_millis * (random() + 1) * 2);
+	if (*backoff_millis <= 0 || *backoff_millis > max_backoff_millis)
+		*backoff_millis = max_backoff_millis;
 }
 
 
@@ -1201,48 +1360,86 @@ validate_replication_set_input(char *replication_sets)
  * Insert node entry for local node to the remote's bdr_nodes.
  */
 void
-initialize_node_entry(PGconn *conn, NodeInfo *ni, char* node_name, Oid dboid,
+initialize_node_entry(PGconn **conn, NodeInfo *ni, char* node_name, Oid dboid,
 					  char *remote_connstr, char *local_connstr)
 {
 	PQExpBuffer		query = createPQExpBuffer();
 	PGresult	   *res;
+	int				backoff_millis = 500;
 
-	res = PQexec(conn,
-		"DO LANGUAGE plpgsql $$\n"
-		"BEGIN\n"
-		"	IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'acquire_global_lock' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'bdr')) THEN\n"
-		"		PERFORM bdr.acquire_global_lock('ddl');\n"
-		"	END IF;\n"
-		"END; $$;\n");
+	/*
+	 * The global DDL lock is a non-waiting lock. It will ERROR on failure to aquire.
+	 * So we need to back-off and try again until we succeed.
+	 *
+	 * bdr_init_copy should try not to fail, since it'll have to re-copy its
+	 * base backup (see 2ndQuadrant/bdr-private#66).
+	 */
+	do {
+		res = PQexec(*conn, "BEGIN");
 
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
-	{
+		if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		{
+			error_backoff(conn, res, remote_connstr, &backoff_millis,
+				_("Failed to begin insert into bdr.bdr_nodes: %s\n"), PQerrorMessage(*conn));
+			continue;
+		}
 		PQclear(res);
-		die(_("Failed to acquire global DDL lock before inserting row into bdr.bdr_nodes: %s\n"), PQerrorMessage(conn));
-	}
 
-	PQclear(res);
+		res = PQexec(*conn,
+			"DO LANGUAGE plpgsql $$\n"
+			"BEGIN\n"
+			"	IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'acquire_global_lock' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'bdr')) THEN\n"
+			"		PERFORM bdr.acquire_global_lock('ddl');\n"
+			"	END IF;\n"
+			"END; $$;\n");
 
-	printfPQExpBuffer(query, "INSERT INTO bdr.bdr_nodes"
-							 " (node_status, node_sysid, node_timeline,"
-							 "	node_dboid, node_name, node_init_from_dsn,"
-							 "  node_local_dsn)"
-							 " VALUES ("BDR_NODE_STATUS_CATCHUP_S", '"UINT64_FORMAT"', %u, %u, %s, %s, %s);",
-					  ni->local_sysid, ni->local_tlid, dboid,
-					  PQescapeLiteral(conn, node_name, strlen(node_name)),
-					  PQescapeLiteral(conn, remote_connstr, strlen(remote_connstr)),
-					  PQescapeLiteral(conn, local_connstr, strlen(local_connstr)));
-	res = PQexec(conn, query->data);
-
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
-	{
+		if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		{
+			error_backoff(conn, res, remote_connstr, &backoff_millis,
+				_("Failed to acquire global DDL lock before inserting row into bdr.bdr_nodes (SQLSTATE %s): %s\n"),
+				PQresultErrorField(res, PG_DIAG_SQLSTATE), PQerrorMessage(*conn));
+			continue;
+		}
 		PQclear(res);
-		die(_("Failed to insert row into bdr.bdr_nodes: %s\n"), PQerrorMessage(conn));
-	}
 
-	PQclear(res);
+		printfPQExpBuffer(query, "INSERT INTO bdr.bdr_nodes"
+								 " (node_status, node_sysid, node_timeline,"
+								 "	node_dboid, node_name, node_init_from_dsn,"
+								 "  node_local_dsn)"
+								 " VALUES ("BDR_NODE_STATUS_CATCHUP_S", '"UINT64_FORMAT"', %u, %u, %s, %s, %s);",
+						  ni->local_sysid, ni->local_tlid, dboid,
+						  PQescapeLiteral(*conn, node_name, strlen(node_name)),
+						  PQescapeLiteral(*conn, remote_connstr, strlen(remote_connstr)),
+						  PQescapeLiteral(*conn, local_connstr, strlen(local_connstr)));
+		res = PQexec(*conn, query->data);
+
+		if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		{
+			error_backoff(conn, res, remote_connstr, &backoff_millis,
+				_("Failed to insert row into bdr.bdr_nodes: %s\n"),
+				PQerrorMessage(*conn));
+			continue;
+		}
+
+		PQclear(res);
+
+		res = PQexec(*conn, "COMMIT");
+
+		if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		{
+			error_backoff(conn, res, remote_connstr, &backoff_millis,
+				_("Failed to commit insert into bdr.bdr_nodes: %s\n"), PQerrorMessage(*conn));
+			continue;
+		}
+		PQclear(res);
+
+		break;
+	}
+	while(1);
+
 	destroyPQExpBuffer(query);
 }
+
 
 /*
  * Clean all the data that was copied from remote node but we don't
@@ -1738,8 +1935,8 @@ wait_postmaster_connection(const char *connstr)
 
 	if (start_seconds_waited == start_seconds_to_wait)
 	{
-		die(_("\nTimed out waiting for postmaster start after %d seconds, check bdr_init_copy_postgres.log\n"),
-			start_seconds_waited);
+		die(_("\nTimed out waiting for postmaster start after %d seconds, check '%s'\n"),
+			start_seconds_waited, log_file_name);
 	}
 	else
 	{
