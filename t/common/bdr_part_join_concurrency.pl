@@ -68,22 +68,14 @@ sub bdr_part_join_concurrency_tests {
     # Concurrent join to an existing two node cluster
     my $node_1 = get_new_node('node_1');
     my $node_2 = get_new_node('node_2');
-TODO: {
-          todo_skip 'Concurrent join errors out on a 2+ node cluster', 18 if $type eq 'physical';
-          concurrent_joins( $type, \@{ [ $node_1, $upstream_node ] }, \@{ [ $node_2, $upstream_node ] });
-
-      }
+   concurrent_joins( $type, \@{ [ $node_1, $upstream_node ] }, \@{ [ $node_2, $upstream_node ] });
     
     note "Concurrent join to different upstreams\n";
     # Concurrent join to different upstreams
     # node_3 => node_a  and node_4 => node_b
     my $node_3 = get_new_node('node_3');
     my $node_4 = get_new_node('node_4');
-TODO: {
-          todo_skip 'Concurrent join errors out on a 2+ node cluster', 18 if $type eq 'physical';
-          concurrent_joins( $type, \@{ [ $node_3, $node_a ] }, \@{ [ $node_4, $node_b ] });
-
-      }
+    concurrent_joins( $type, \@{ [ $node_3, $node_a ] }, \@{ [ $node_4, $node_b ] });
     note "done\n";
     # Clean up
     stop_nodes( [ $node_1, $node_2,$node_3,$node_4,$node_b, $node_a ] );
