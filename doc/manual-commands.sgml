@@ -137,6 +137,29 @@
       </listitem>
      </varlistentry>
 
+     <varlistentry>
+      <term><option>--log-file=<replaceable class="parameter">bdr_init_copy_postgres.log</replaceable></option></term>
+      <listitem>
+       <para>
+        Path to the log file that bdr_init_copy will write <command>postgres</command>
+        output to when it starts temporary postgres instances during setup. Defaults
+        to <literal>bdr_init_copy_postgres.log</literal> in the current directory.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
+      <term><option>--apply-delay=<replaceable class="parameter">0</replaceable></option></term>
+      <listitem>
+       <para>
+        This option is the same as the <replaceable>apply_delay</replaceable> option to
+        <function><link linkend="function-bdr-group-join">bdr_group_join</link></function>.
+        It is mainly useful for testing - including crude latency simulation -
+        and debugging.
+       </para>
+      </listitem>
+     </varlistentry>
+
     </variablelist>
    </para>
 

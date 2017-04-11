@@ -91,7 +91,8 @@ command_ok(
         '--local-dbname', $dbname,
         '--local-port', $node_b->port,
         '--postgresql-conf', "$tempdir/postgresql.conf.b",
-        '--log-file', $node_b->logfile . "_initcopy"
+        '--log-file', $node_b->logfile . "_initcopy",
+        '--apply-delay', 1000
     ],
 	'bdr_init_copy succeeds');
 

@@ -108,7 +108,8 @@ static void initialize_replication_identifier(PGconn *conn, NodeInfo *ni, Oid db
 static char *create_restore_point(PGconn *conn, char *restore_point_name);
 static void initialize_replication_slot(PGconn *conn, NodeInfo *ni, Oid dboid);
 static void bdr_node_start(PGconn *conn, char *node_name, char *remote_connstr,
-						   char *local_connstr, char *replication_sets);
+						   char *local_connstr, char *replication_sets,
+						   int apply_delay);
 
 static RemoteInfo *get_remote_info(char* connstr);
 
@@ -183,10 +184,12 @@ main(int argc, char **argv)
 	bool		use_existing_data_dir;
 	int			pg_ctl_ret,
 				logfd;
+	int			apply_delay = 0;
 #define PG_CTL_CMD_BUF_SIZE 1000
 	char pg_ctl_cmd_buf[PG_CTL_CMD_BUF_SIZE];
 
 	static struct option long_options[] = {
+		{"apply-delay", required_argument, NULL, 'y'},
 		{"node-name", required_argument, NULL, 'n'},
 		{"pgdata", required_argument, NULL, 'D'},
 		{"remote-dbname", required_argument, NULL, 'd'},
@@ -225,7 +228,7 @@ main(int argc, char **argv)
 	}
 
 	/* Option parsing and validation */
-	while ((c = getopt_long(argc, argv, "D:d:h:l:n:p:sU:v", long_options, &optindex)) != -1)
+	while ((c = getopt_long(argc, argv, "D:d:h:l:n:p:sU:vy:", long_options, &optindex)) != -1)
 	{
 		switch (c)
 		{
@@ -255,6 +258,14 @@ main(int argc, char **argv)
 			case 'v':
 				verbosity++;
 				break;
+			case 'y':
+				{
+					char *endptr = NULL;
+					apply_delay = strtol(optarg, &endptr, 10);
+					if (*endptr != '\0')
+						die(_("could not parse '%s' as an integer for apply_delay"), optarg);
+					break;
+				}
 			case 2:
 				local_connstr = pg_strdup(optarg);
 				break;
@@ -593,7 +604,7 @@ main(int argc, char **argv)
 		print_msg(VERBOSITY_VERBOSE,
 				  _(" %s: replication sets: %s"), dbname, replication_sets);
 		bdr_node_start(local_conn, node_name, db_remote_connstr,
-					   db_local_connstr, replication_sets);
+					   db_local_connstr, replication_sets, apply_delay);
 
 		PQfinish(local_conn);
 		local_conn = NULL;
@@ -651,6 +662,8 @@ usage(void)
 	printf(_("                          postgresql.conf, does not set port server is"));
 	printf(_("                          started with."));
 	printf(_("  --local-user=NAME       connect as specified database user to the local node\n"));
+	printf(_("\nDebug options:\n"));
+	printf(_("  --apply-delay           artificially delay replication for this node\n"));
 }
 
 static void
@@ -1593,7 +1606,7 @@ create_restore_point(PGconn *conn, char *restore_point_name)
 
 static void
 bdr_node_start(PGconn *conn, char *node_name, char *remote_connstr,
-			   char *local_connstr, char *replication_sets)
+			   char *local_connstr, char *replication_sets, int apply_delay)
 {
 	PQExpBuffer  query = createPQExpBuffer();
 	PQExpBuffer  repsets = createPQExpBuffer();
@@ -1612,11 +1625,12 @@ bdr_node_start(PGconn *conn, char *node_name, char *remote_connstr,
 	printfPQExpBuffer(repsets, "{%s}", replication_sets);
 
 	/* Add the node to the cluster. */
-	printfPQExpBuffer(query, "SELECT bdr.bdr_group_join(%s, %s, %s, replication_sets := %s);",
+	printfPQExpBuffer(query, "SELECT bdr.bdr_group_join(%s, %s, %s, replication_sets := %s, apply_delay := %d);",
 					  PQescapeLiteral(conn, node_name, strlen(node_name)),
 					  PQescapeLiteral(conn, local_connstr, strlen(local_connstr)),
 					  PQescapeLiteral(conn, remote_connstr, strlen(remote_connstr)),
-					  PQescapeLiteral(conn, repsets->data, repsets->len));
+					  PQescapeLiteral(conn, repsets->data, repsets->len),
+					  apply_delay);
 
 	res = PQexec(conn, query->data);
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
