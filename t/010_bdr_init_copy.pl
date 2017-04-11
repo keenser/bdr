@@ -83,7 +83,16 @@ close($conf_b) or die ("failed to close new postgresql.conf: $!");
 
 
 command_ok(
-	[ 'bdr_init_copy', '-v', '-D', $node_b->data_dir, "-n", 'node-b', '-d', $node_a->connstr($dbname), '--local-dbname', $dbname, '--local-port', $node_b->port, '--postgresql-conf', "$tempdir/postgresql.conf.b"],
+    [
+        'bdr_init_copy', '-v',
+        '-D', $node_b->data_dir,
+        "-n", 'node-b',
+        '-d', $node_a->connstr($dbname),
+        '--local-dbname', $dbname,
+        '--local-port', $node_b->port,
+        '--postgresql-conf', "$tempdir/postgresql.conf.b",
+        '--log-file', $node_b->logfile . "_initcopy"
+    ],
 	'bdr_init_copy succeeds');
 
 # ... but does replication actually work? Is this a live, working cluster?
