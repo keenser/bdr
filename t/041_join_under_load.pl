@@ -26,7 +26,8 @@ pgbench_init($node_a, $pgbench_scale);
 create_bdr_group($node_a);
 
 TODO: {
-    # seems to hang during init
+    # seems to hang during init, likely due to snapbuild bugs
+    # 2ndQuadrant/bdr-private#67
     todo_skip 'logical join under write load hangs due to probable BDR bug', 8;
     note "Logical join node under write load\n";
     join_under_write_load('logical',$node_a, get_new_node('node_b'), $pgbench_scale);
