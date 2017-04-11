@@ -76,6 +76,9 @@ static char		   *log_file_name = "bdr_init_copy_postgres.log";
 static PGconn		*local_conn = NULL;
 static PGconn		*remote_conn = NULL;
 
+/* static so print_msg etc can easily use it */
+static char	   *node_name = NULL;
+
 static void signal_handler(int sig);
 static void usage(void);
 static void BDR_NORETURN finish_die();
@@ -168,7 +171,6 @@ main(int argc, char **argv)
 	char	   *remote_lsn;
 	bool		stop = false;
 	int			optindex;
-	char	   *node_name = NULL;
 	char	   *local_connstr = NULL;
 	char	   *local_dbhost = NULL,
 			   *local_dbport = NULL,
@@ -692,6 +694,10 @@ static void
 die(const char *fmt,...)
 {
 	va_list argptr;
+
+	if (node_name != NULL)
+		fprintf(stdout, "[%s] ", node_name);
+
 	va_start(argptr, fmt);
 	vfprintf(stderr, fmt, argptr);
 	va_end(argptr);
@@ -708,6 +714,10 @@ print_msg(VerbosityLevelEnum level, const char *fmt,...)
 	if (verbosity >= level)
 	{
 		va_list argptr;
+
+		if (node_name != NULL)
+			fprintf(stdout, "[%s] ", node_name);
+
 		va_start(argptr, fmt);
 		vfprintf(stdout, fmt, argptr);
 		va_end(argptr);
@@ -763,8 +773,11 @@ static void
 error_backoff(PGconn **conn, PGresult *res, const char *connstr, int *backoff_millis, const char *fmt,...)
 {
 	const int		max_backoff_millis = 120 * 1000;
-
 	va_list argptr;
+
+	if (node_name != NULL)
+		fprintf(stdout, "[%s] ", node_name);
+
 	va_start(argptr, fmt);
 	vfprintf(stdout, fmt, argptr);
 	va_end(argptr);
@@ -832,7 +845,7 @@ error_backoff(PGconn **conn, PGresult *res, const char *connstr, int *backoff_mi
 
 backoff:
 	/* ignore EINTR, we're just going to retry anyway */
-	print_msg(VERBOSITY_VERBOSE, _("backing off for %.2fs and retrying"),
+	print_msg(VERBOSITY_VERBOSE, _("backing off for %.2fs and retrying\n"),
 		((float)*backoff_millis)/1000);
 	(void) usleep(*backoff_millis * 1000);
 	*backoff_millis = (int)((float)*backoff_millis * (random() + 1) * 2);
