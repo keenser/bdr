@@ -1,3 +1,4 @@
+\set VERBOSITY terse
 \c regression
 -- Create a funnily named table and sequence for use during node
 -- part testing.
@@ -28,7 +29,6 @@ $$;
 -- Dropping the BDR extension isn't allowed while BDR is active
 DROP EXTENSION bdr;
 ERROR:  Dropping the BDR extension is prohibited while BDR is active
-HINT:  Part this node with bdr.part_by_node_names(...) first, or if appropriate use bdr.remove_bdr_from_local_node(...)
 -- Initial state
 SELECT node_name, node_status FROM bdr.bdr_nodes ORDER BY node_name;
     node_name    | node_status 
@@ -40,17 +40,12 @@ SELECT node_name, node_status FROM bdr.bdr_nodes ORDER BY node_name;
 -- You can't part your own node
 SELECT bdr.bdr_part_by_node_names(ARRAY['node-regression']);
 ERROR:  cannot part a node from its self
-DETAIL:  Attempted to bdr_part_by_node_names(...) on node node-regression which is one of the nodes being parted
-HINT:  You must call call bdr_part_by_node_names on a node that is not being removed
-CONTEXT:  PL/pgSQL function bdr_part_by_node_names(text[]) line 22 at RAISE
 -- Or a nonexistent node
 SELECT bdr.bdr_part_by_node_names(ARRAY['node-nosuch']);
 ERROR:  No node(s) named node-nosuch found
-CONTEXT:  PL/pgSQL function bdr_part_by_node_names(text[]) line 44 at RAISE
 -- Unsubscribe must also fail, since this is a BDR connection
 SELECT bdr.bdr_unsubscribe('node-pg');
 ERROR:  bdr unidirectional subscriptions no longer supported, use pglogical
-CONTEXT:  PL/pgSQL function bdr_unsubscribe(text,boolean) line 3 at RAISE
 -- Nothing has changed
 SELECT node_name, node_status FROM bdr.bdr_nodes ORDER BY node_name;
     node_name    | node_status 
@@ -167,7 +162,6 @@ INFO:  Node node-pgi is already parted, ignoring
 -- to be dropped yet.
 DROP EXTENSION bdr;
 ERROR:  Dropping the BDR extension is prohibited while BDR is active
-HINT:  Part this node with bdr.part_by_node_names(...) first, or if appropriate use bdr.remove_bdr_from_local_node(...)
 SELECT bdr.bdr_is_active_in_db();
  bdr_is_active_in_db 
 ---------------------
@@ -179,7 +173,6 @@ SELECT bdr.remove_bdr_from_local_node(true, true);
 WARNING:  forcing deletion of possibly active BDR node
 NOTICE:  node forced to parted state, now removing
 NOTICE:  removing BDR from node
-INFO:  BDR 1.0 global sequences not supported, nothing to convert
 NOTICE:  BDR removed from this node. You can now DROP EXTENSION bdr and, if this is the last BDR node on this PostgreSQL instance, remove bdr from shared_preload_libraries.
  remove_bdr_from_local_node 
 ----------------------------

@@ -1,0 +1,110 @@
+\c postgres
+SELECT bdr.bdr_replicate_ddl_command($DDL$ 
+CREATE VIEW public.list_extension AS 
+SELECT e.extname AS "Name",  n.nspname AS "Schema", c.description AS "Description"
+FROM pg_catalog.pg_extension e LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace LEFT JOIN pg_catalog.pg_description c ON c.objoid = e.oid AND c.classoid = 'pg_catalog.pg_extension'::pg_catalog.regclass
+WHERE e.extname ~ '^(pg_trgm)$'
+ORDER BY 1;
+$DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+-- create nonexistant extension
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE EXTENSION pg_trgm SCHEMA public; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+ pg_xlog_wait_remote_apply 
+---------------------------
+ 
+ 
+(2 rows)
+
+\c regression
+SELECT * from list_extension; 
+  Name   | Schema |                            Description                            
+---------+--------+-------------------------------------------------------------------
+ pg_trgm | public | text similarity measurement and index searching based on trigrams
+(1 row)
+
+-- drop and recreate using CINE
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP EXTENSION pg_trgm; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+ pg_xlog_wait_remote_apply 
+---------------------------
+ 
+ 
+(2 rows)
+
+\c postgres
+SELECT * from list_extension; 
+ Name | Schema | Description 
+------+--------+-------------
+(0 rows)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+ pg_xlog_wait_remote_apply 
+---------------------------
+ 
+ 
+(2 rows)
+
+\c regression
+SELECT * from list_extension; 
+  Name   | Schema |                            Description                            
+---------+--------+-------------------------------------------------------------------
+ pg_trgm | public | text similarity measurement and index searching based on trigrams
+(1 row)
+
+-- CINE existing extension
+\set VERBOSITY terse
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public; $DDL$);
+NOTICE:  extension "pg_trgm" already exists, skipping
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+\set VERBOSITY default
+SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+ pg_xlog_wait_remote_apply 
+---------------------------
+ 
+ 
+(2 rows)
+
+\c postgres
+SELECT * from list_extension; 
+  Name   | Schema |                            Description                            
+---------+--------+-------------------------------------------------------------------
+ pg_trgm | public | text similarity measurement and index searching based on trigrams
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP EXTENSION pg_trgm; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP VIEW public.list_extension; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+

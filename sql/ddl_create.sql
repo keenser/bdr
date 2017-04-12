@@ -220,6 +220,7 @@ CREATE TABLE tbl_showfillfactor (name char(500), unique (name) with (fillfactor=
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
 \c regression
 \d+ tbl_showfillfactor
+DROP TABLE tbl_showfillfactor;
 
 --- AGGREGATE ---
 \c postgres
@@ -280,6 +281,7 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
 DROP AGGREGATE test_aggfstr(integer,integer,text);
 DROP FUNCTION aggf_trans(aggtype[],integer,integer,text);
 DROP FUNCTION aggfns_trans(aggtype[],integer,integer,text);
+DROP TYPE aggtype;
 
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
 \dfa test_*

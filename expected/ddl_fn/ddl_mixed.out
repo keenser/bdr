@@ -1,10 +1,22 @@
 -- test for RT-#37869
-CREATE TABLE add_column (
+SELECT bdr.bdr_replicate_ddl_command($DDL$ 
+CREATE TABLE public.add_column (
     id serial primary key,
     data text
 );
+$DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
 INSERT INTO add_column (data) SELECT generate_series(1,100,10);
-ALTER TABLE add_column ADD COLUMN other varchar(100);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TABLE public.add_column ADD COLUMN other varchar(100); $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
  pg_xlog_wait_remote_apply 
 ---------------------------
@@ -28,7 +40,7 @@ SELECT id, data, other FROM add_column ORDER BY id;
  10 | 91   | 
 (10 rows)
 
-UPDATE add_column SET other = 'foobar';
+UPDATE add_column SET other = 'foobar'; 
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
  pg_xlog_wait_remote_apply 
 ---------------------------
@@ -52,4 +64,11 @@ SELECT id, data, other FROM add_column ORDER BY id;
  10 | 91   | foobar
 (10 rows)
 
-DROP TABLE add_column;
+SELECT bdr.bdr_replicate_ddl_command($DDL$ 
+DROP TABLE public.add_column
+$DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+

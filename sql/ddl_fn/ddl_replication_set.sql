@@ -1,10 +1,10 @@
 /* First test whether a table's replication set can be properly manipulated */
 \c postgres
-CREATE SCHEMA normalschema;
-CREATE SCHEMA "strange.schema-IS";
-CREATE TABLE switcheroo(id serial primary key, data text);
-CREATE TABLE normalschema.sometbl_normalschema();
-CREATE TABLE "strange.schema-IS".sometbl_strangeschema();
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE SCHEMA normalschema; $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE SCHEMA "strange.schema-IS"; $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.switcheroo(id serial primary key, data text); $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE normalschema.sometbl_normalschema(); $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE "strange.schema-IS".sometbl_strangeschema(); $DDL$);
 
 -- show initial replication sets
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
@@ -54,9 +54,9 @@ SELECT bdr.table_set_replication_sets('switcheroo', '{""}');
 SELECT bdr.table_set_replication_sets('switcheroo', '{12345678901234567890123456789012345678901234567890123456789012345678901234567890}');
 
 \c postgres
-DROP TABLE switcheroo;
-DROP TABLE normalschema.sometbl_normalschema;
-DROP TABLE "strange.schema-IS".sometbl_strangeschema;
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.switcheroo; $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE normalschema.sometbl_normalschema; $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE "strange.schema-IS".sometbl_strangeschema; $DDL$);
 
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
 
@@ -68,7 +68,7 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
  */
 \c postgres
 
-CREATE TABLE settest_1(data text primary key);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.settest_1(data text primary key); $DDL$);
 
 INSERT INTO settest_1(data) VALUES ('should-replicate-via-default');
 
@@ -95,13 +95,13 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
 \c regression
 SELECT * FROM settest_1 ORDER BY data;
 \c postgres
-DROP TABLE settest_1;
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.settest_1; $DDL$);
 
 
 /*
  * Now test configurations where only some actions are replicated.
  */
-CREATE TABLE settest_2(data text primary key);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.settest_2(data text primary key); $DDL$);
 
 -- Test 1: ensure that inserts are replicated while update/delete are filtered
 SELECT bdr.table_set_replication_sets('settest_2', '{for-node-2-insert}');
@@ -184,10 +184,8 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
 \c regression
 SELECT * FROM settest_2 ORDER BY data;
 
--- Truncate required as execution on BDR2.0/9.4 
--- gives 'violates unique constraint' during ddl_96/ddl_replication_set
 \c postgres
 TRUNCATE bdr.bdr_replication_set_config;
-DROP TABLE settest_2;
-DROP SCHEMA normalschema;
-DROP SCHEMA "strange.schema-IS";
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.settest_2; $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP SCHEMA normalschema; $DDL$);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP SCHEMA "strange.schema-IS"; $DDL$);

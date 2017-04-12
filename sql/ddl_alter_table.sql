@@ -239,3 +239,4 @@ SELECT * FROM test_inh_chld2;
 DROP TABLE test_inh_chld2;
 DROP TABLE test_inh_chld1;
 DROP TABLE test_inh_root;
+DROP USER test_user;

@@ -120,6 +120,22 @@ REGRESS_COMPAT := compat96
 SEQTESTS :=
 endif
 
+# DDL tests run via bdr.bdr_replicate_ddl_command
+# wrapper.
+DDLTESTS_FUNC := \
+	ddl_fn/ddl_enable_ddl \
+	ddl_fn/ddl_create \
+	ddl_fn/ddl_alter_table \
+	ddl_fn/ddl_extension \
+	ddl_fn/ddl_function \
+	ddl_fn/ddl_grant \
+	ddl_fn/ddl_mixed \
+	ddl_fn/ddl_namespace \
+	ddl_fn/ddl_replication_set \
+	ddl_fn/ddl_view \
+	ddl_fn/ddl_disable_ddl
+
+
 include Makefile.global
 
 $(info Building against PostgreSQL $(MAJORVERSION))
@@ -281,6 +297,7 @@ REGRESSCHECKS= \
 	read_only \
 	$(FAILING_TESTS) \
 	$(DDLTESTS) \
+	$(DDLTESTS_FUN) \
 	dml_basic \
 	dml_contrib \
 	dml_delete_pk \
@@ -312,8 +329,7 @@ REGRESSCONFIG=bdr_regress_bdr.conf
 regresscheck: all install
 	[ -e pg_hba.conf ] || ln -s $(bdr_abs_srcdir)/pg_hba.conf .
 
-	mkdir -p results/ddl
-	mkdir -p results/dml
+	mkdir -p results/ddl results/ddl_fn results/dml
 
 	./run_tests --config $(bdr_abs_srcdir)/$(REGRESSCONFIG) \
 		--testbinary src/test/regress/pg_regress \

@@ -1,10 +1,35 @@
 /* First test whether a table's replication set can be properly manipulated */
 \c postgres
-CREATE SCHEMA normalschema;
-CREATE SCHEMA "strange.schema-IS";
-CREATE TABLE switcheroo(id serial primary key, data text);
-CREATE TABLE normalschema.sometbl_normalschema();
-CREATE TABLE "strange.schema-IS".sometbl_strangeschema();
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE SCHEMA normalschema; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE SCHEMA "strange.schema-IS"; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.switcheroo(id serial primary key, data text); $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE normalschema.sometbl_normalschema(); $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE "strange.schema-IS".sometbl_strangeschema(); $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
 -- show initial replication sets
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
      sets      
@@ -180,9 +205,24 @@ CONTEXT:  during DDL replay of ddl statement: SECURITY LABEL FOR bdr ON TABLE pu
 SQL statement "SELECT bdr.bdr_replicate_ddl_command(format('SECURITY LABEL FOR bdr ON TABLE %s IS %L', p_relation, v_label))"
 PL/pgSQL function bdr.table_set_replication_sets(regclass,text[]) line 30 at PERFORM
 \c postgres
-DROP TABLE switcheroo;
-DROP TABLE normalschema.sometbl_normalschema;
-DROP TABLE "strange.schema-IS".sometbl_strangeschema;
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.switcheroo; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE normalschema.sometbl_normalschema; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE "strange.schema-IS".sometbl_strangeschema; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
  pg_xlog_wait_remote_apply 
 ---------------------------
@@ -197,7 +237,12 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
  * node2: dbname postgres, sets: default, important, for-node-2
  */
 \c postgres
-CREATE TABLE settest_1(data text primary key);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.settest_1(data text primary key); $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
 INSERT INTO settest_1(data) VALUES ('should-replicate-via-default');
 SELECT bdr.table_set_replication_sets('settest_1', '{}');
  table_set_replication_sets 
@@ -271,11 +316,21 @@ SELECT * FROM settest_1 ORDER BY data;
 (4 rows)
 
 \c postgres
-DROP TABLE settest_1;
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.settest_1; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
 /*
  * Now test configurations where only some actions are replicated.
  */
-CREATE TABLE settest_2(data text primary key);
+SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.settest_2(data text primary key); $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
 -- Test 1: ensure that inserts are replicated while update/delete are filtered
 SELECT bdr.table_set_replication_sets('settest_2', '{for-node-2-insert}');
  table_set_replication_sets 
@@ -391,10 +446,23 @@ SELECT * FROM settest_2 ORDER BY data;
  repl-update--insert-#4
 (8 rows)
 
--- Truncate required as execution on BDR2.0/9.4 
--- gives 'violates unique constraint' during ddl_96/ddl_replication_set
 \c postgres
 TRUNCATE bdr.bdr_replication_set_config;
-DROP TABLE settest_2;
-DROP SCHEMA normalschema;
-DROP SCHEMA "strange.schema-IS";
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.settest_2; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP SCHEMA normalschema; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP SCHEMA "strange.schema-IS"; $DDL$);
+ bdr_replicate_ddl_command 
+---------------------------
+ 
+(1 row)
+
