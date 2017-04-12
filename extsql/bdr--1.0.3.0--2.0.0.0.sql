@@ -222,7 +222,12 @@ BEGIN
 
         END IF;
 
-        IF remote_nodeinfo.node_status IS DISTINCT FROM bdr.node_status_to_char('BDR_NODE_STATUS_READY') THEN
+        IF remote_nodeinfo.node_status IS NULL THEN
+            RAISE USING
+                MESSAGE = 'remote node does not appear to be a fully running BDR node',
+                DETAIL = format($$The dsn '%s' connects successfully but the target node has no entry in bdr.bdr_nodes$$, remote_dsn),
+                ERRCODE = 'object_not_in_prerequisite_state';
+        ELSIF remote_nodeinfo.node_status IS DISTINCT FROM bdr.node_status_to_char('BDR_NODE_STATUS_READY') THEN
             RAISE USING
                 MESSAGE = 'remote node does not appear to be a fully running BDR node',
                 DETAIL = format($$The dsn '%s' connects successfully but the target node has bdr.bdr_nodes node_status=%s instead of expected 'r'$$, remote_dsn, remote_nodeinfo.node_status),
