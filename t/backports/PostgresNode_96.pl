@@ -5,6 +5,8 @@
 #
 package PostgresNode;
 
+use Carp;
+
 =pod
 
 =item $node->lsn(mode)
@@ -36,6 +38,7 @@ sub lsn
 
 	my $result = $self->safe_psql('postgres', "SELECT $modes{$mode}");
 	chomp($result);
+
 	if ($result eq '')
 	{
 		return;

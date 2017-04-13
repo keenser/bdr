@@ -10,6 +10,7 @@ use 5.8.0;
 use Exporter;
 use Cwd;
 use Config;
+use Carp;
 use PostgresNode;
 # Patch PostgresNode with stuff we want from post-9.6
 require "t/backports/PostgresNode_96.pl";
@@ -47,6 +48,10 @@ use vars qw(@ISA @EXPORT @EXPORT_OK);
     check_joinfail_status
     initandstart_join_node
     wait_for_apply
+    start_acquire_ddl_lock
+    wait_acquire_ddl_lock
+    cancel_ddl_lock
+    release_ddl_lock
     );
 
 # For use by other modules, but need not appear in the default namespace of
@@ -589,14 +594,17 @@ sub create_table {
     exec_ddl($node,qq{ CREATE TABLE public.$table_name( id integer primary key);});
 }
 
-# Check that no slots are created for failed join
-# on peer nodes.
+# Check that no slots or nodes entries are created for failed join on peer
+# nodes.
 sub check_joinfail_status {
     my $join_node = shift;
     my @peer_nodes = @_;
     my $join_node_name = $join_node->name();
     foreach my $node (@peer_nodes){
-        is($node->safe_psql($bdr_test_dbname, "SELECT node_status FROM bdr.bdr_nodes WHERE node_name = '$join_node_name'"), '', "Failed join entry on ". $node->name() );
+        is($node->safe_psql($bdr_test_dbname, "SELECT node_status FROM bdr.bdr_nodes WHERE node_name = '$join_node_name'"), '', "no nodes entry on ". $node->name() . " from " . $join_node_name . " after failed join" );
+    }
+    TODO: {
+        todo_skip 'test for slot creation on failed join', 1;
     }
 }
 
@@ -606,7 +614,91 @@ sub wait_for_apply {
     # On node <self>, wait until the send pointer on the replication slot with
     # application_name "<peer>:send" to passes the xlog flush position on node
     # <self> at the time of this call.
-    $self->wait_for_catchup($peer->name . ":send", 'replay', $self->lsn('flush'));
+    my $lsn = $self->lsn('flush');
+    die('no lsn to catch up to') if !defined $lsn;
+    $self->wait_for_catchup($peer->name . ":send", 'replay', $lsn);
+}
+
+# Acquire a global ddl lock on $node in $mode using a background
+# psql session and return the IPC::Run handle for the session
+# along with a hash its stdin, stdout and stderr handles.
+#
+# $timer, if supplied, may be an IPC::Run::Timer or IPC::Run::Timeout
+# object to time-limit the acquisition attempt. Timeouts die() on expiry,
+# timers must be passed to wait_acquire_ddl_lock.
+sub start_acquire_ddl_lock {
+    my ($node, $mode, $timer) = @_;
+    my ($psql_stdin, $psql_stdout, $psql_stderr) = ('','','');
+    my $psql = IPC::Run::start(
+        ['psql', '-qAtX', '-d', $node->connstr($bdr_test_dbname), '-f', '-'],
+        '<', \$psql_stdin, '>', \$psql_stdout, '2>', \$psql_stderr,
+        $timer);
+
+    $psql_stdin .= "BEGIN;\n";
+    $psql_stdin .= "SELECT pg_backend_pid() || '=pid';\n";
+    $psql_stdin .= "SELECT 'acquired' FROM bdr.acquire_global_lock('$mode');\n";
+    $psql->pump until $psql_stdout =~ qr/([[:digit:]]+)=pid/;
+
+    my $backend_pid = $1;
+
+    # Acquire should be in progress or finished
+    if ($node->safe_psql($bdr_test_dbname, qq[SELECT 1 FROM pg_stat_activity WHERE query LIKE '%bdr.acquire_global_lock%' AND pid = $backend_pid;]) ne '1')
+    {
+        croak("cannot find expected query   SELECT 'acquired' FROM bdr.acquire_global_lock...   in pg_stat_activity\n");
+    }
+
+    print("pid of backend acquiring ddl lock is $backend_pid\n");
+
+    return {
+        handle => $psql,
+        stdin => $psql_stdin,
+        stdout => $psql_stdout,
+        stderr => $psql_stderr,
+        node => $node,
+        backend_pid => $backend_pid,
+        mode => $mode
+    };
+}
+
+# Wait to acquire global ddl lock on handle supplied by start_acquire_ddl_lock.
+#
+# By default waits forever (or until timeout supplied at start),
+# and dies if acquisition fails.
+#
+sub wait_acquire_ddl_lock {
+    my ($psql, $timer, $no_error_die) = @_;
+    my $success = 1;
+
+    do {
+        $psql->{'handle'}->pump;
+        last if defined($timer) && $timer->is_expired;
+    }
+    until ($psql->{'stdout'} =~ 'acquired' or $psql->{'stderr'} =~ 'ERROR' or !$psql->{'handle'}->pumpable);
+
+    if ($psql->{stderr} =~ 'ERROR')
+    {
+        $psql->{stdin} .= "\\q\n";
+        $psql->{handle}->pump;
+        $psql->{handle}->kill_kill;
+        croak("could not acquire global ddl lock in mode " . $psql->{mode} . " on " . $psql->{node}->name . ": " . $psql->{stderr})
+            unless($no_error_die);
+    }
+
+    # TODO, better test using status functions?
+    return $psql->{'stdout'} =~ 'acquired';
+}
+
+sub cancel_ddl_lock {
+    my $psql = shift;
+    $psql->{node}->safe_psql($bdr_test_dbname, "SELECT pg_terminate_backend(" . $psql->{backend_pid} . ")");
+}
+
+sub release_ddl_lock {
+    my $psql = @_;
+    my $stdin = 
+
+    $psql->{stdin} .= "ROLLBACK;\n\\echo ROLLBACK\n\\q";
+    $psql->finish;
 }
 
 1;
