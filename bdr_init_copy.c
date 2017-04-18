@@ -86,8 +86,6 @@ static void BDR_NORETURN die(const char *fmt,...)
 __attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
 static void print_msg(VerbosityLevelEnum level, const char *fmt,...)
 __attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 3)));
-static void error_backoff(PGconn **conn, PGresult *res, const char * connstr, int *backoff_millis, const char *fmt,...)
-__attribute__((format(PG_PRINTF_ATTRIBUTE, 5, 6)));
 
 #define RETRIABLE_XACT 1
 #define RETRIABLE_CONN 2
@@ -1391,77 +1389,29 @@ initialize_node_entry(PGconn **conn, NodeInfo *ni, char* node_name, Oid dboid,
 {
 	PQExpBuffer		query = createPQExpBuffer();
 	PGresult	   *res;
-	int				backoff_millis = 500;
 
 	/*
-	 * The global DDL lock is a non-waiting lock. It will ERROR on failure to aquire.
-	 * So we need to back-off and try again until we succeed.
-	 *
-	 * bdr_init_copy should try not to fail, since it'll have to re-copy its
-	 * base backup (see 2ndQuadrant/bdr-private#66).
+	 * There's no need to protect against join concurrency here by taking
+	 * the global DDL lock. The only check we need is done later, when we assign
+	 * node_seq_id and mark the node ready.
 	 */
-	do {
-		res = PQexec(*conn, "BEGIN");
+	printfPQExpBuffer(query, "INSERT INTO bdr.bdr_nodes"
+							 " (node_status, node_sysid, node_timeline,"
+							 "	node_dboid, node_name, node_init_from_dsn,"
+							 "  node_local_dsn)"
+							 " VALUES ("BDR_NODE_STATUS_CATCHUP_S", '"UINT64_FORMAT"', %u, %u, %s, %s, %s);",
+					  ni->local_sysid, ni->local_tlid, dboid,
+					  PQescapeLiteral(*conn, node_name, strlen(node_name)),
+					  PQescapeLiteral(*conn, remote_connstr, strlen(remote_connstr)),
+					  PQescapeLiteral(*conn, local_connstr, strlen(local_connstr)));
+	res = PQexec(*conn, query->data);
 
-		if (PQresultStatus(res) != PGRES_COMMAND_OK)
-		{
-			error_backoff(conn, res, remote_connstr, &backoff_millis,
-				_("Failed to begin insert into bdr.bdr_nodes: %s\n"), PQerrorMessage(*conn));
-			continue;
-		}
-		PQclear(res);
-
-		res = PQexec(*conn,
-			"DO LANGUAGE plpgsql $$\n"
-			"BEGIN\n"
-			"	IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'acquire_global_lock' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'bdr')) THEN\n"
-			"		PERFORM bdr.acquire_global_lock('ddl');\n"
-			"	END IF;\n"
-			"END; $$;\n");
-
-		if (PQresultStatus(res) != PGRES_COMMAND_OK)
-		{
-			error_backoff(conn, res, remote_connstr, &backoff_millis,
-				_("Failed to acquire global DDL lock before inserting row into bdr.bdr_nodes (SQLSTATE %s): %s\n"),
-				PQresultErrorField(res, PG_DIAG_SQLSTATE), PQerrorMessage(*conn));
-			continue;
-		}
-		PQclear(res);
-
-		printfPQExpBuffer(query, "INSERT INTO bdr.bdr_nodes"
-								 " (node_status, node_sysid, node_timeline,"
-								 "	node_dboid, node_name, node_init_from_dsn,"
-								 "  node_local_dsn)"
-								 " VALUES ("BDR_NODE_STATUS_CATCHUP_S", '"UINT64_FORMAT"', %u, %u, %s, %s, %s);",
-						  ni->local_sysid, ni->local_tlid, dboid,
-						  PQescapeLiteral(*conn, node_name, strlen(node_name)),
-						  PQescapeLiteral(*conn, remote_connstr, strlen(remote_connstr)),
-						  PQescapeLiteral(*conn, local_connstr, strlen(local_connstr)));
-		res = PQexec(*conn, query->data);
-
-		if (PQresultStatus(res) != PGRES_COMMAND_OK)
-		{
-			error_backoff(conn, res, remote_connstr, &backoff_millis,
-				_("Failed to insert row into bdr.bdr_nodes: %s\n"),
-				PQerrorMessage(*conn));
-			continue;
-		}
-
-		PQclear(res);
-
-		res = PQexec(*conn, "COMMIT");
-
-		if (PQresultStatus(res) != PGRES_COMMAND_OK)
-		{
-			error_backoff(conn, res, remote_connstr, &backoff_millis,
-				_("Failed to commit insert into bdr.bdr_nodes: %s\n"), PQerrorMessage(*conn));
-			continue;
-		}
-		PQclear(res);
-
-		break;
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+		die( _("Failed to insert row into bdr.bdr_nodes: %s\n"),
+			PQerrorMessage(*conn));
+		continue;
 	}
-	while(1);
 
 	destroyPQExpBuffer(query);
 }
