@@ -87,11 +87,6 @@ __attribute__((format(PG_PRINTF_ATTRIBUTE, 1, 2)));
 static void print_msg(VerbosityLevelEnum level, const char *fmt,...)
 __attribute__((format(PG_PRINTF_ATTRIBUTE, 2, 3)));
 
-#define RETRIABLE_XACT 1
-#define RETRIABLE_CONN 2
-#define RETRIABLE_NO 0
-static int retriable(PGconn *conn, PGresult *res);
-
 static int BDR_WARN_UNUSED run_pg_ctl(const char *arg);
 static void run_basebackup(const char *remote_connstr, const char *data_dir);
 static void wait_postmaster_connection(const char *connstr);
@@ -723,135 +718,6 @@ print_msg(VerbosityLevelEnum level, const char *fmt,...)
 	}
 }
 
-static int
-retriable(PGconn *conn, PGresult *res)
-{
-	const char *sqlstate;
-
-	if (PQstatus(conn) != CONNECTION_OK)
-		return RETRIABLE_CONN;
-	
-	/* https://www.postgresql.org/docs/current/static/errcodes-appendix.html */
-	sqlstate = PQresultErrorField(res, PG_DIAG_SQLSTATE);
-
-	/* Transaction aborts, deadlocks, etc */
-	if (strncmp(sqlstate, "40", 2) == 0)
-		return RETRIABLE_XACT;
-	/* query cancel */
-	if (strcmp(sqlstate, "57014") == 0)
-		return RETRIABLE_XACT;
-	/* lock not available (including DDL lock or NOWAIT locks) */
-	if (strcmp(sqlstate, "55P03") == 0)
-		return RETRIABLE_XACT;
-	/* connection issues */
-	if (strncmp(sqlstate, "08", 2) == 0)
-		return RETRIABLE_CONN;
-	/* OOM, disk full, etc */
-	if (strncmp(sqlstate, "53", 2) == 0)
-		return RETRIABLE_CONN;
-	/* admin shutdown, crash shutdown, cannot connect now */
-	if (strcmp(sqlstate, "57P01") == 0 || strcmp(sqlstate, "57P02") == 0 || strcmp(sqlstate, "57P03") == 0)
-		return RETRIABLE_CONN;
-
-	return RETRIABLE_NO;
-}
-
-/*
- * Handle an error by advancing a back-off timer if the error
- * is retriable, or die()ing if it isn't.
- *
- * Aborts the transaction if one is in progress. Does not start a new one.
- *
- * May re-connect to the connection if it has dropped, using the supplied
- * connection string.
- *
- * The PGresult is cleared.
- */
-static void
-error_backoff(PGconn **conn, PGresult *res, const char *connstr, int *backoff_millis, const char *fmt,...)
-{
-	const int		max_backoff_millis = 120 * 1000;
-	va_list argptr;
-
-	if (node_name != NULL)
-		fprintf(stdout, "[%s] ", node_name);
-
-	va_start(argptr, fmt);
-	vfprintf(stdout, fmt, argptr);
-	va_end(argptr);
-	fflush(stdout);
-
-	switch (retriable(*conn, res))
-	{
-		case RETRIABLE_XACT:
-		{
-			PQclear(res);
-
-			res = PQexec(*conn, "ROLLBACK");
-			/* rollback OK */
-			if (PQresultStatus(res) == PGRES_COMMAND_OK)
-			{
-				PQclear(res);
-				goto backoff;
-			}
-			/* 25P01: there is no transaction in progress */
-			if (strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), "25P01") == 0)
-			{
-				PQclear(res);
-				goto backoff;
-			}
-
-			/* deliberately fall through to RETRIABLE_CONN if we can't ROLLBACK */
-		}
-		case RETRIABLE_CONN:
-		{
-			PQclear(res);
-			PQfinish(*conn);
-			print_msg(VERBOSITY_VERBOSE, _("re-connecting to database and retrying..."));
-			*conn = PQconnectdb(connstr);
-			print_msg(VERBOSITY_VERBOSE, "\n");
-			if (PQstatus(*conn) != CONNECTION_OK)
-			{
-				/*
-				 * Assume we were connected previously, so it must be retriable
-				 * unless something drastic happened like the host being removed.
-				 * Return to let the caller fail again and call back into this
-				 * function.
-				 *
-				 * libpq offers no supported way to obtain the SQLSTATE for a
-				 * PGconn; see
-				 *
-				 * - http://stackoverflow.com/q/23349086/398670
-				 * - http://stackoverflow.com/q/15779991/398670
-				 *
-				 * The first query on the conn we return will fail, bringing
-				 * the caller right back to reconnect.
-				 */
-				print_msg(VERBOSITY_NORMAL,_("re-connection to database failed: %s, connection string was: %s\n"), PQerrorMessage(*conn), connstr);
-			}
-			goto backoff;
-		}
-
-		case RETRIABLE_NO:
-		{
-			PQclear(res);
-			finish_die();
-		}
-	}
-
-	die("unreachable");
-
-backoff:
-	/* ignore EINTR, we're just going to retry anyway */
-	print_msg(VERBOSITY_VERBOSE, _("backing off for %.2fs and retrying\n"),
-		((float)*backoff_millis)/1000);
-	(void) usleep(*backoff_millis * 1000);
-	*backoff_millis = (int)((float)*backoff_millis * (random() + 1) * 2);
-	if (*backoff_millis <= 0 || *backoff_millis > max_backoff_millis)
-		*backoff_millis = max_backoff_millis;
-}
-
-
 /*
  * Start pg_ctl with given argument(s) - used to start/stop postgres
  *
@@ -1391,9 +1257,16 @@ initialize_node_entry(PGconn **conn, NodeInfo *ni, char* node_name, Oid dboid,
 	PGresult	   *res;
 
 	/*
-	 * There's no need to protect against join concurrency here by taking
-	 * the global DDL lock. The only check we need is done later, when we assign
-	 * node_seq_id and mark the node ready.
+	 * There's no need to protect against join concurrency here by taking the
+	 * global DDL lock. The only check we need is done later, when we assign
+	 * node_seq_id and mark the node ready - and that's done by bdr_init_copy
+	 * after the node is started up.
+	 *
+	 * There's no risk of loss of transactions if a peer node is down at this
+	 * point. We only have to basebackup the immediate upstream, and we'll
+	 * start up in catchup mode, which creates slots on our peers before it
+	 * starts replaying from the join target. So we'll get stuck there until
+	 * the peer comes back.
 	 */
 	printfPQExpBuffer(query, "INSERT INTO bdr.bdr_nodes"
 							 " (node_status, node_sysid, node_timeline,"
@@ -1410,7 +1283,6 @@ initialize_node_entry(PGconn **conn, NodeInfo *ni, char* node_name, Oid dboid,
 	{
 		die( _("Failed to insert row into bdr.bdr_nodes: %s\n"),
 			PQerrorMessage(*conn));
-		continue;
 	}
 
 	destroyPQExpBuffer(query);
