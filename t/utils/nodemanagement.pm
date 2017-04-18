@@ -596,15 +596,32 @@ sub create_table {
 
 # Check that no slots or nodes entries are created for failed join on peer
 # nodes.
+#
 sub check_joinfail_status {
-    my $join_node = shift;
-    my @peer_nodes = @_;
+    my ($join_node, $join_node_sysid, $join_node_timeline, @peer_nodes) = @_;
     my $join_node_name = $join_node->name();
+
+#   die "join node sysid and timeline must be passed"
+#       unless ($join_node_sysid and $join_node_timeline);
+#
+#   die "join node sysid and timeline must be scalars"
+#       if (ref $join_node_sysid || ref $join_node_timeline);
+
     foreach my $node (@peer_nodes){
         is($node->safe_psql($bdr_test_dbname, "SELECT node_status FROM bdr.bdr_nodes WHERE node_name = '$join_node_name'"), '', "no nodes entry on ". $node->name() . " from " . $join_node_name . " after failed join" );
     }
-    TODO: {
-        todo_skip 'test for slot creation on failed join', 1;
+    my ($sysid, $timeline, $dboid);
+    eval {
+         ($sysid, $timeline, $dboid) = split(qr/\|/, $join_node->safe_psql($bdr_test_dbname, 'SELECT * FROM bdr.bdr_get_local_nodeid()'));
+    };
+    if ($@) {
+        die("couldn't query joining node for its sysid and timeline: $@");
+    }
+    foreach my $node (@peer_nodes) {
+        my $slotname = $node->safe_psql($bdr_test_dbname, qq[SELECT bdr.bdr_format_slot_name('$sysid', '$timeline', '$dboid', '');]);
+        is($node->slot($slotname)->{'slot_name'}, '', "slot for " . $join_node_name . " not created on peer node " . $node->name)
+            or diag "slot name is $slotname";
+        
     }
 }
 
