@@ -30,13 +30,13 @@ DATA_built = \
 	extsql/bdr--2.0.0.0.sql
 
 DOCS = README.bdr bdr.conf.sample
-# Putting binaries in SCRIPTS_built is a bit of a hack, but we're pushing
-# PGXS to its limits in BDR anyway, why not abuse it some more?
-SCRIPTS_built = scripts/bdr_initial_load bdr_init_copy bdr_dump
+SCRIPTS = scripts/bdr_initial_load bdr_init_copy bdr_dump
+all: scripts/bdr_initial_load bdr_init_copy bdr_dump
 
 # We can't use Makefile.global's MAJORVERSION here yet
 ifneq ($(BDR_PG_MAJORVERSION),9.4)
-SCRIPTS_built += bdr_resetxlog
+SCRIPTS += bdr_resetxlog
+all: bdr_resetxlog
 endif
 
 # When in development add -Werror
