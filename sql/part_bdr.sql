@@ -21,6 +21,10 @@ BEGIN
 END;
 $$;
 
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+DROP VIEW public.ddl_info;
+$DDL$);
+
 -- Dropping the BDR extension isn't allowed while BDR is active
 DROP EXTENSION bdr;
 

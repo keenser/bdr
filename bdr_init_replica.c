@@ -738,7 +738,7 @@ bdr_ddl_lock_remote(PGconn *conn, BDRLockType mode)
 		"DO LANGUAGE plpgsql $$\n"
 		"BEGIN\n"
 		"	IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'acquire_global_lock' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'bdr')) THEN\n"
-		"		PERFORM bdr.acquire_global_lock('ddl');\n"
+		"		PERFORM bdr.acquire_global_lock('ddl_lock');\n"
 		"	END IF;\n"
 		"END; $$;\n");
 

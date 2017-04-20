@@ -24,7 +24,7 @@ my @online_nodes = ($node_0, $node_2);
 # Make sure DDL locking works
 my $timedout = 0;
 my $ret = $node_0->psql($bdr_test_dbname,
-	q[SELECT bdr.acquire_global_lock('ddl');],
+	q[SELECT bdr.acquire_global_lock('ddl_lock');],
 	timed_out => \$timedout, timeout => 10);
 is($ret, 0, 'DDL lock succeeded with node up');
 is($timedout, 0, 'DDL lock acquisition did not time out with node up');
@@ -36,7 +36,7 @@ is($timedout, 0, 'DDL lock acquisition did not time out with node up');
 # Bring a node down
 $offline_node->stop;
  
-my $lock = start_acquire_ddl_lock($node_0, 'ddl');
+my $lock = start_acquire_ddl_lock($node_0, 'ddl_lock');
 # Not much way around waiting here, since we're trying to show we'll
 # time out...
 sleep(2);

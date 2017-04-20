@@ -296,6 +296,7 @@ REGRESSCHECKS= \
 	seq2 \
 	read_only \
 	$(FAILING_TESTS) \
+	ddl_lock \
 	$(DDLTESTS) \
 	$(DDLTESTS_FUN) \
 	dml_basic \

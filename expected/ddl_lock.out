@@ -1,0 +1,177 @@
+-- Tests of DDL locking and state probes for simple 1-peer configurations with
+-- other peer up. Can't do catchup write-mode tests with only two nodes.
+--
+-- (More complex tests will be done in TAP framework)
+SELECT bdr.acquire_global_lock('');
+ERROR:  unknown lock type 
+SELECT bdr.acquire_global_lock(NULL);
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SELECT bdr.acquire_global_lock('bogus');
+ERROR:  unknown lock type bogus
+BEGIN;
+SET LOCAL bdr.permit_ddl_locking = false;
+SELECT bdr.acquire_global_lock('ddl_lock');
+ERROR:  Global DDL locking attempt rejected by configuration
+DETAIL:  bdr.permit_ddl_locking is false and the attempted command would require the global lock to be acquired. Command rejected.
+HINT:  See the 'DDL replication' chapter of the documentation.
+ROLLBACK;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+-- Simple write lock
+BEGIN;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+SELECT bdr.acquire_global_lock('write_lock');
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode  |    lock_state    | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+------------+------------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                0 | t          | write_lock | acquire_acquired | f             |                 |                   |         1 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+ROLLBACK;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+-- Simple ddl lock
+BEGIN;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+SELECT bdr.acquire_global_lock('ddl_lock');
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode |    lock_state    | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                0 | t          | ddl_lock  | acquire_acquired | f             |                 |                   |         1 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+COMMIT;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+-- Lock upgrade
+BEGIN;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+SELECT bdr.acquire_global_lock('ddl_lock');
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode |    lock_state    | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                0 | t          | ddl_lock  | acquire_acquired | f             |                 |                   |         1 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+SELECT bdr.acquire_global_lock('write_lock');
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode  |    lock_state    | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+------------+------------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                0 | t          | write_lock | acquire_acquired | f             |                 |                   |         1 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+ROLLBACK;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+-- Log upgrade in rollbacked subxact
+BEGIN;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+SELECT bdr.acquire_global_lock('ddl_lock');
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SAVEPOINT ddllock;
+SELECT bdr.acquire_global_lock('write_lock');
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode  |    lock_state    | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+------------+------------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                0 | t          | write_lock | acquire_acquired | f             |                 |                   |         1 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+ROLLBACK TO SAVEPOINT ddllock;
+-- We really should go back to 'ddl_lock' mode, but we actually
+-- stay in 'write_lock' mode here. Even if the acquire of write
+-- mode fails (or is not completed yet) above.
+-- BUG 2ndQuadrant/bdr-private#77
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode  |    lock_state    | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+------------+------------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                0 | t          | write_lock | acquire_acquired | f             |                 |                   |         1 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+SELECT bdr.acquire_global_lock('write_lock');
+ acquire_global_lock 
+---------------------
+ 
+(1 row)
+
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode  |    lock_state    | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+------------+------------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                0 | t          | write_lock | acquire_acquired | f             |                 |                   |         1 |      1 |                0 |               0 |               0 | f
+(1 row)
+
+COMMIT;
+SELECT * FROM ddl_info;
+ owner_replorigin | is_my_node | lock_mode | lock_state | owner_pid_set | owner_pid_is_me | fully_owned_by_me | lockcount | npeers | npeers_confirmed | npeers_declined | npeers_replayed | has_replay_upto 
+------------------+------------+-----------+------------+---------------+-----------------+-------------------+-----------+--------+------------------+-----------------+-----------------+-----------------
+                  | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
+(1 row)
+

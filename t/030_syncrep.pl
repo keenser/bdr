@@ -69,13 +69,13 @@ node_d:send],
 # Everything working?
 $node_a->safe_psql('bdr_test', q[SELECT bdr.bdr_replicate_ddl_command($DDL$CREATE TABLE public.t(x text)$DDL$)]);
 # Make sure everything caught up by forcing another lock
-$node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
+$node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write_lock')]);
 
 my @nodes = ($node_a, $node_b, $node_c, $node_d);
 for my $node (@nodes) {
   $node->safe_psql('bdr_test', q[INSERT INTO t(x) VALUES (bdr.bdr_get_local_node_name())]);
 }
-$node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
+$node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write_lock')]);
 
 is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('0-0 B+')]), 0, 'A: async B-up');
 
@@ -216,7 +216,7 @@ is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('a: 2-1 B+ C+ 2')]), 0, 
 #-------------------------------------
 
 note "taking final DDL lock";
-$node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write')]);
+$node_a->safe_psql('bdr_test', q[SELECT bdr.acquire_global_lock('write_lock')]);
 note "done, checking final state";
 
 my $expected = q[node_a|0-0 B-

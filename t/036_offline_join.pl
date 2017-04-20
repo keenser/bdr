@@ -23,14 +23,15 @@ my $timedout = 0;
 
 # Create an upstream node and bring up bdr
 my $nodes = make_bdr_group(3,'node_');
-my $node_0 = $nodes->[0];
+my ($node_0,$offline_node,$node_2) = @$nodes;
 my $offline_index = 1;
-my $offline_node = $nodes->[$offline_index];
-my $node_2 = $nodes->[2];
 my @online_nodes = ($node_0, $node_2);
 
-$node_0->safe_psql($bdr_test_dbname, q[CREATE TABLE testinsert(x integer primary key);]);
-wait_for_apply($node_0, $node_1);
+$node_0->safe_psql($bdr_test_dbname, q[
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE TABLE public.testinsert(x integer primary key);
+$DDL$);]);
+wait_for_apply($node_0, $offline_node);
 wait_for_apply($node_0, $node_2);
 
 # bring down a node and try to do a node join of a new node.
@@ -72,7 +73,7 @@ push @$nodes, $new_node;
 push @online_nodes, $new_node;
 
 # Everything is happy?
-$new_node->safe_psql($bdr_test_dbname, q[SELECT bdr.acquire_global_lock('ddl')]);
+$new_node->safe_psql($bdr_test_dbname, q[SELECT bdr.acquire_global_lock('ddl_lock')]);
 
 # TODO: check offline work is sync'd
 

@@ -19,3 +19,6 @@ CREATE EXTENSION bdr;
 \c regression
 CREATE EXTENSION btree_gist;
 CREATE EXTENSION bdr;
+
+-- DDL lock state before BDR comes up
+SELECT * FROM bdr.global_lock_info();

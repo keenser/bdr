@@ -115,7 +115,7 @@ is($status_b, "node-a|BDR_NODE_STATUS_READY\nnode-b|BDR_NODE_STATUS_READY", 'nod
 
 note "Taking ddl lock manually";
 
-$node_a->safe_psql($dbname, "SELECT bdr.acquire_global_lock('write')");
+$node_a->safe_psql($dbname, "SELECT bdr.acquire_global_lock('write_lock')");
 
 note "Creating a table...";
 

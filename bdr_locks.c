@@ -154,6 +154,9 @@
 #include "bdr_locks.h"
 #include "bdr_messaging.h"
 
+#include "fmgr.h"
+#include "funcapi.h"
+
 #include "miscadmin.h"
 
 #include "access/xact.h"
@@ -180,10 +183,14 @@
 
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/pg_lsn.h"
 #include "utils/rel.h"
 #include "utils/snapmgr.h"
 
 #define LOCKTRACE "DDL LOCK TRACE: "
+
+extern Datum bdr_ddl_lock_info(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(bdr_ddl_lock_info);
 
 /* GUCs */
 bool bdr_permit_ddl_locking = false;
@@ -285,8 +292,6 @@ static void bdr_lock_state_xact_callback(XactEvent event, void *arg);
 static BdrLocksDBState * bdr_locks_find_database(Oid dbid, bool create);
 static void bdr_locks_find_my_database(bool create);
 
-static char *bdr_lock_type_to_name(BDRLockType lock_type);
-static BDRLockType bdr_lock_name_to_type(const char *lock_type);
 static char *bdr_lock_state_to_name(BDRLockState lock_state);
 
 static void bdr_request_replay_confirmation(void);
@@ -774,12 +779,15 @@ bdr_lock_holder_xact_callback(XactEvent event, void *arg)
 			elog(WARNING, "Releasing unacquired global lock");
 
 		this_xact_acquired_lock = false;
+		Assert(bdr_my_locks_database->lock_holder_local_pid == MyProcPid);
 		bdr_my_locks_database->lock_holder_local_pid = 0;
 		bdr_my_locks_database->lock_type = BDR_LOCK_NOLOCK;
 		bdr_my_locks_database->lock_state = BDR_LOCKSTATE_NOLOCK;
 		bdr_my_locks_database->replay_confirmed = 0;
 		bdr_my_locks_database->replay_confirmed_lsn = InvalidXLogRecPtr;
 		bdr_my_locks_database->requestor = NULL;
+
+		/* We requested the lock we're releasing */
 
 		if (bdr_my_locks_database->lockcount == 0)
 			 bdr_locks_on_unlock();
@@ -998,12 +1006,19 @@ bdr_acquire_ddl_lock(BDRLockType lock_type)
 
 		bdr_my_locks_database->lockcount++;
 		this_xact_acquired_lock = true;
+		Assert(bdr_my_locks_database->lock_holder_local_pid == 0);
 		bdr_my_locks_database->lock_holder_local_pid = MyProcPid;
 	}
 
 	Assert(bdr_my_locks_database->lock_holder_local_pid == MyProcPid);
+
+	/* Need to clear since we're possibly upgrading an already-held lock */
+	bdr_my_locks_database->lock_holder = InvalidRepOriginId;
 	bdr_my_locks_database->acquire_confirmed = 0;
 	bdr_my_locks_database->acquire_declined = 0;
+
+	/* Register as acquiring lock */
+	Assert(bdr_my_locks_database->lock_holder_local_pid == MyProcPid);
 	bdr_my_locks_database->requestor = &MyProc->procLatch;
 	bdr_my_locks_database->lock_type = lock_type;
 	bdr_my_locks_database->lock_state = BDR_LOCKSTATE_ACQUIRE_TALLY_CONFIRMATIONS;
@@ -1091,49 +1106,9 @@ bdr_acquire_global_lock_sql(PG_FUNCTION_ARGS)
 		ereport(WARNING,
 				(errmsg("bdr.skip_ddl_locking is set, ignoring explicit bdr.acquire_global_lock(...) call")));
 	else
-		bdr_acquire_ddl_lock(bdr_lock_type_from_char(mode));
+		bdr_acquire_ddl_lock(bdr_lock_name_to_type(mode));
 
 	PG_RETURN_VOID();
-}
-
-/*
- * Return string name of a bdr lock mode. Caller must not free the string.
- */
-char*
-bdr_lock_type_to_char(BDRLockType mode)
-{
-	switch (mode)
-	{
-		case BDR_LOCK_NOLOCK:
-			return "none";
-		case BDR_LOCK_DDL:
-			return "ddl";
-		case BDR_LOCK_WRITE:
-			return "write";
-	}
-	elog(ERROR, "unreachable");
-}
-
-/*
- * Convert string name of BDR lock mode to enum, or error
- * on invalid name.
- *
- * Yes, this duplicates Pg's enums, but they're a pain to work with from C.
- */
-BDRLockType
-bdr_lock_type_from_char(char *mode)
-{
-	if (strcmp(mode, "none") == 0)
-		return BDR_LOCK_NOLOCK;
-	else if (strcmp(mode, "ddl") == 0)
-		return BDR_LOCK_DDL;
-	else if (strcmp(mode, "write") == 0)
-		return BDR_LOCK_WRITE;
-	else
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("BDR global lock mode '%s' not valid", mode),
-				 errhint("valid modes are 'none', 'ddl', 'write'")));
 }
 
 /*
@@ -2115,7 +2090,7 @@ bdr_locks_check_dml(void)
 }
 
 /* Lock type conversion functions */
-static char *
+char *
 bdr_lock_type_to_name(BDRLockType lock_type)
 {
 	switch (lock_type)
@@ -2131,14 +2106,14 @@ bdr_lock_type_to_name(BDRLockType lock_type)
 	}
 }
 
-static BDRLockType
+BDRLockType
 bdr_lock_name_to_type(const char *lock_type)
 {
-	if (strcmp(lock_type, "nolock") == 0)
+	if (strcasecmp(lock_type, "nolock") == 0)
 		return BDR_LOCK_NOLOCK;
-	else if (strcmp(lock_type, "ddl_lock") == 0)
+	else if (strcasecmp(lock_type, "ddl_lock") == 0)
 		return BDR_LOCK_DDL;
-	else if (strcmp(lock_type, "write_lock") == 0)
+	else if (strcasecmp(lock_type, "write_lock") == 0)
 		return BDR_LOCK_WRITE;
 	else
 		elog(ERROR, "unknown lock type %s", lock_type);
@@ -2169,4 +2144,100 @@ bdr_lock_state_to_name(BDRLockState lock_state)
 		default:
 			elog(ERROR, "unknown lock state %d", lock_state);
 	}
+}
+
+Datum
+bdr_ddl_lock_info(PG_FUNCTION_ARGS)
+{
+#define BDR_DDL_LOCK_INFO_NFIELDS 13
+	BdrLocksDBState state;
+	BDRNodeId	locknodeid, myid;
+	char		sysid_str[33];
+	Datum		values[BDR_DDL_LOCK_INFO_NFIELDS];
+	bool		isnull[BDR_DDL_LOCK_INFO_NFIELDS];
+	TupleDesc	tupleDesc;
+	HeapTuple	returnTuple;
+	int			field;
+
+	bdr_make_my_nodeid(&myid);
+
+	if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
+		elog(ERROR, "return type must be a row type");
+
+	if (!bdr_is_bdr_activated_db(MyDatabaseId))
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("bdr is not active in this database")));
+
+	bdr_locks_find_my_database(false);
+
+	LWLockAcquire(bdr_locks_ctl->lock, LW_SHARED);
+	memcpy(&state, bdr_my_locks_database, sizeof(BdrLocksDBState));
+	LWLockRelease(bdr_locks_ctl->lock);
+
+	if (!state.in_use)
+		/* shouldn't happen */
+		elog(ERROR, "bdr active but lockstate not configured");
+
+	/* fields: */
+	memset(&values, 0, sizeof(values));
+	memset(&isnull, 0, sizeof(isnull));
+	field = 0;
+
+	/* owner_replorigin, owner_sysid, owner_timeline and dboid, lock_type */
+	if (state.lockcount > 0)
+	{
+		/*
+		 * While we don't strictly need to map the reporigin to node identity,
+		 * doing so here saves the user from having to parse the reporigin name
+		 * and map it to bdr.bdr_nodes to get the node name.
+		 */
+		bdr_fetch_sysid_via_node_id(state.lock_holder, &locknodeid);
+		snprintf(sysid_str, sizeof(sysid_str), UINT64_FORMAT, locknodeid.sysid);
+		values[field++] = ObjectIdGetDatum(state.lock_holder);
+		values[field++] = CStringGetTextDatum(sysid_str);
+		values[field++] = ObjectIdGetDatum(locknodeid.timeline);
+		values[field++] = ObjectIdGetDatum(locknodeid.dboid);
+		values[field++] = CStringGetTextDatum(bdr_lock_type_to_name(state.lock_type));
+	}
+	else
+	{
+		int end;
+		for (end = field + 5; field < end; field++)
+			isnull[field]=true;
+	}
+
+	/* lock_state */
+	values[field++] = CStringGetTextDatum(bdr_lock_state_to_name(state.lock_state));
+
+	/* record locking backend pid if we're the locking node */
+	values[field] = Int32GetDatum(state.lock_holder_local_pid);
+	isnull[field++] = bdr_nodeid_eq(&myid, &locknodeid);
+
+	/*
+	 * Finer grained info, may be subject to change:
+	 *
+	 * npeers, npeers_confirmed, npeers_declined, npeers_replayed, replay_upto
+	 *
+	 * These reflect shmem state directly; no checking for whether we're locker
+	 * etc.
+	 *
+	 * Note that the counters get cleared once the current operation is
+	 * finished, so you'll rarely if ever see nnodes = acquire_confirmed for
+	 * example.
+	 */
+	values[field++] = Int32GetDatum(state.lockcount);
+	values[field++] = Int32GetDatum(state.nnodes);
+	values[field++] = Int32GetDatum(state.acquire_confirmed);
+	values[field++] = Int32GetDatum(state.acquire_declined);
+	values[field++] = Int32GetDatum(state.replay_confirmed);
+	if (state.replay_confirmed_lsn != InvalidXLogRecPtr)
+		values[field++] = LSNGetDatum(state.replay_confirmed_lsn);
+	else
+		isnull[field++] = true;
+
+	Assert(field == BDR_DDL_LOCK_INFO_NFIELDS);
+
+	returnTuple = heap_form_tuple(tupleDesc, values, isnull);
+	PG_RETURN_DATUM(HeapTupleGetDatum(returnTuple));
 }

@@ -29,7 +29,7 @@ my $psql = IPC::Run::start(
     '<', \$psql_stdin, '>', \$psql_stdout, '2>', \$psql_stderr);
 
 $psql_stdin .= "BEGIN;\n";
-$psql_stdin .= "SELECT 'acquired' FROM bdr.acquire_global_lock('ddl');\n";
+$psql_stdin .= "SELECT 'acquired' FROM bdr.acquire_global_lock('ddl_lock');\n";
 $psql->pump until $psql_stdout =~ 'acquired';
 
 is( $node_0->safe_psql( $bdr_test_dbname, "SELECT state FROM bdr.bdr_global_locks"), 'acquired', "ddl lock acquired");

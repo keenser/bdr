@@ -35,7 +35,7 @@ extern bool bdr_locks_process_message(int msg_type, bool transactional,
 									  XLogRecPtr lsn, const BDRNodeId * const origin,
 									  StringInfo message);
 
-extern char* bdr_lock_type_to_char(BDRLockType mode);
-extern BDRLockType bdr_lock_type_from_char(char *mode);
+extern char * bdr_lock_type_to_name(BDRLockType lock_type);
+extern BDRLockType bdr_lock_name_to_type(const char *lock_type);
 
 #endif

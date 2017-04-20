@@ -683,6 +683,27 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION bdr.global_lock_info(
+	OUT owner_replorigin oid,
+	OUT owner_sysid text,
+	OUT owner_timeline oid,
+	OUT owner_dboid oid,
+	OUT lock_mode text,
+	OUT lock_state text,
+	OUT owner_local_pid integer,
+	/* rest is lower level diagnostic stuff */
+	OUT lockcount integer,
+	OUT npeers integer,
+	OUT npeers_confirmed integer,
+	OUT npeers_declined integer,
+	OUT npeers_replayed integer,
+	OUT replay_upto	pg_lsn)
+RETURNS record VOLATILE
+LANGUAGE c AS 'MODULE_PATHNAME','bdr_ddl_lock_info';
+
+COMMENT ON FUNCTION bdr.global_lock_info() IS
+'get diagnostic information on BDR global locking state';
+
 RESET bdr.permit_unsafe_ddl_commands;
 RESET bdr.skip_ddl_replication;
 RESET search_path;
