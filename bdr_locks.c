@@ -197,6 +197,8 @@ typedef struct BdrLocksDBState {
 
 	int			lockcount;
 	RepOriginId	lock_holder;
+	/* pid of lock holder if it's a backend of on local node */
+	int			lock_holder_local_pid;
 
 	BDRLockType	lock_type;
 
@@ -680,6 +682,7 @@ bdr_lock_xact_callback(XactEvent event, void *arg)
 			elog(WARNING, "Releasing unacquired global lock");
 
 		this_xact_acquired_lock = false;
+		bdr_my_locks_database->lock_holder_local_pid = 0;
 		bdr_my_locks_database->lock_type = BDR_LOCK_NOLOCK;
 		bdr_my_locks_database->replay_confirmed = 0;
 		bdr_my_locks_database->replay_confirmed_lsn = InvalidXLogRecPtr;
@@ -758,7 +761,10 @@ bdr_acquire_ddl_lock(BDRLockType lock_type)
 	/* No need to do anything if already holding requested lock. */
 	if (this_xact_acquired_lock &&
 		bdr_my_locks_database->lock_type >= lock_type)
+	{
+		Assert(bdr_my_locks_database->lock_holder_local_pid == MyProcPid);
 		return;
+	}
 
 	/*
 	 * If this is the first time in current transaction that we are trying to
@@ -809,13 +815,17 @@ bdr_acquire_ddl_lock(BDRLockType lock_type)
 	/* check whether the lock can actually be acquired */
 	if (!this_xact_acquired_lock && bdr_my_locks_database->lockcount > 0)
 	{
-		BDRNodeId	holder;
+		BDRNodeId	holder, myid;
+
+		bdr_make_my_nodeid(&myid);
 
 		bdr_fetch_sysid_via_node_id(bdr_my_locks_database->lock_holder, &holder);
 		
 		elog(ddl_lock_log_level(DDL_LOCK_TRACE_ACQUIRE_RELEASE),
-			LOCKTRACE "lock already held by "BDR_NODEID_FORMAT_WITHNAME,
-			BDR_NODEID_FORMAT_WITHNAME_ARGS(holder));
+			LOCKTRACE "lock already held by "BDR_NODEID_FORMAT_WITHNAME" (is_local %d, pid %d)",
+			BDR_NODEID_FORMAT_WITHNAME_ARGS(holder),
+			bdr_nodeid_eq(&myid, &holder),
+			bdr_my_locks_database->lock_holder_local_pid);
 
 		ereport(ERROR,
 				(errcode(ERRCODE_LOCK_NOT_AVAILABLE),
@@ -841,7 +851,10 @@ bdr_acquire_ddl_lock(BDRLockType lock_type)
 	{
 		bdr_my_locks_database->lockcount++;
 		this_xact_acquired_lock = true;
+		bdr_my_locks_database->lock_holder_local_pid = MyProcPid;
 	}
+
+	Assert(bdr_my_locks_database->lock_holder_local_pid == MyProcPid);
 	bdr_my_locks_database->acquire_confirmed = 0;
 	bdr_my_locks_database->acquire_declined = 0;
 	bdr_my_locks_database->requestor = &MyProc->procLatch;
