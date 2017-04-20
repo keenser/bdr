@@ -14,7 +14,7 @@
  *    single node. That choice was made to reduce both, the complexity of the
  *    implementation, and to reduce the likelihood of inter node deadlocks.
  *
- *    Because DDL locks have to acquired inside transactions the inter node
+ *    Because DDL locks have to acquired inside transactions the inter-node
  *    communication can't be done via a queue table streamed out via logical
  *    decoding - other nodes would only see the result once the the
  *    transaction commits. We don't have autonomous tx's or suspendable tx's
@@ -29,10 +29,10 @@
  *    a node holds the global DDL lock then it owns the local DDL locks on each
  *    node.
  *
- *    Note that the DDL locking process flushes the queues of all edges in the
- *    node graph, not just those between the acquiring node and its peers. If
- *    node A requests the lock, then it must have fully replayed from B and C
- *    and vice versa. But B and C must also have fully replayed each others'
+ *    Note that DDL locking in 'write' mode flushes the queues of all edges in
+ *    the node graph, not just those between the acquiring node and its peers.
+ *    If node A requests the lock, then it must have fully replayed from B and
+ *    C and vice versa. But B and C must also have fully replayed each others'
  *    outstanding replication queues. This ensures that no row changes that
  *    might conflict with the DDL can be in flight anywhere.
  *
@@ -43,6 +43,10 @@
  *       node doesn't already hold it. If there already is a local ddl lock
  *       it'll ERROR out, as this indicates another node already holds or is
  *       trying to acquire the global DDL lock.
+ *
+ *       (We could wait, but would need to internally release, back off, and
+ *       retry, and we'd likely land up getting cancelled anyway so it's not
+ *       worth it.)
  *
  *    2) It sends out a 'acquire_lock' message to all other nodes.
  *
@@ -56,21 +60,33 @@
  *    4) If a 'acquire_lock' message is received and the local DDL lock is not
  *       held it'll be acquired and an entry into the 'bdr_global_locks' table
  *       will be made marking the lock to be in the 'catchup' phase. (Note that
- *       no such entry appears on the node that *requested* the global lock).
+ *       no such entry appears on the node that *requested* the global lock
+ *       because MVCC renders it invisible to other xacts).
  *
- *    5) All concurrent user transactions will be cancelled (after a grace
- *       period, and if DML write cancel is required for this lock type).
+ *    For 'write' mode locks:
  *
- *    6) A 'request_replay_confirm' message will be sent to all other nodes
- *       containing a lsn that has to be replayed.
+ *    5a) All concurrent user transactions will be cancelled (after a grace
+ *        period, for 'write' mode locks only)
  *
- *    7) When a 'request_replay_confirm' message is received, a
- *       'replay_confirm' message will be sent back.
+ *    5b) A 'request_replay_confirm' message will be sent to all other nodes
+ *        containing a lsn that has to be replayed.
  *
- *    8) Once all other nodes have replied with 'replay_confirm' the local DDL lock
- *       has been successfully acquired on the node reading the 'acquire_lock'
- *       message (from 3)). The corresponding bdr_global_locks entry will be
- *       updated to the 'acquired' state and a 'confirm_lock' message will be sent out.
+ *    5c) When a 'request_replay_confirm' message is received, a
+ *        'replay_confirm' message will be sent back.
+ *
+ *    5d) Once all other nodes have replied with 'replay_confirm' the local DDL lock
+ *        has been successfully acquired on the node reading the 'acquire_lock'
+ *        message (from 3)).
+ *
+ *    or for 'ddl' mode locks:
+ *
+ *    5) The replay confirmation process is skipped.
+ *
+ *    then for both 'ddl' and 'write' mode locks:
+ *
+ *	  6) The local bdr_global_locks entry will be updated to the 'acquired'
+ *	     state and a 'confirm_lock' message will be sent out indicating
+ *	     that the local ddl lock is fully acquired.
  *
  *
  *    On the node requesting the global lock:
