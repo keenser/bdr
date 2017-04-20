@@ -104,6 +104,9 @@ bdr_replicate_ddl_command(PG_FUNCTION_ARGS)
 {
 	text    *command = PG_GETARG_TEXT_PP(0);
 	char    *query = text_to_cstring(command);
+	int		nestlevel = -1;
+
+	nestlevel = NewGUCNestLevel();
 
     /* Force everything in the query to be fully qualified. */
 	(void) set_config_option("search_path", "",
@@ -127,12 +130,15 @@ bdr_replicate_ddl_command(PG_FUNCTION_ARGS)
 	}
 	PG_CATCH();
 	{
+		if (nestlevel > 0)
+			AtEOXact_GUC(true, nestlevel);
 		in_bdr_replicate_ddl_command = false;
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
 
+	if (nestlevel > 0)
+		AtEOXact_GUC(true, nestlevel);
 	in_bdr_replicate_ddl_command = false;
-
 	PG_RETURN_VOID();
 }
