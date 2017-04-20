@@ -29,6 +29,10 @@
  *    a node holds the global DDL lock then it owns the local DDL locks on each
  *    node.
  *
+ *    A global 'ddl' lock may be upgraded to the stronger 'write' lock. This
+ *    carries no deadlock hazard because the weakest lock mode is still an
+ *    exclusive lock.
+ *
  *    Note that DDL locking in 'write' mode flushes the queues of all edges in
  *    the node graph, not just those between the acquiring node and its peers.
  *    If node A requests the lock, then it must have fully replayed from B and
@@ -127,6 +131,10 @@
  *    one or more of their peers acquire locks in different orders. Apps that
  *    do DDL from multiple nodes must be prepared to retry DDL.
  *
+ *    DDL locks are transaction-level but do not respect subtransactions.
+ *    They are not released if a subtransaction rolls back.
+ *    (2ndQuadrant/bdr-private#77).
+ *
  * IDENTIFICATION
  *		bdr_locks.c
  *
@@ -195,8 +203,20 @@ typedef struct BdrLocksDBState {
 	/* has startup progressed far enough to allow writes? */
 	bool		locked_and_loaded;
 
+	/*
+	 * despite the use of a lock counter, currently only one
+	 * lock may exist at a time.
+	 */
 	int			lockcount;
+
+	/*
+	 * If the lock is held by a peer, the node ID of the peer.
+	 * InvalidRepOriginId represents the local node, like usual.
+	 * Lock may be in the process of being acquired not fully
+	 * held.
+	 */
 	RepOriginId	lock_holder;
+
 	/* pid of lock holder if it's a backend of on local node */
 	int			lock_holder_local_pid;
 
@@ -408,7 +428,7 @@ bdr_locks_find_my_database(bool create)
  * Called from the per-db worker.
  */
 void
-bdr_locks_startup()
+bdr_locks_startup(void)
 {
 	Relation		rel;
 	ScanKey			key;
@@ -699,7 +719,7 @@ bdr_lock_xact_callback(XactEvent event, void *arg)
 
 
 static void
-register_xact_callback()
+register_xact_callback(void)
 {
 	static bool registered;
 
