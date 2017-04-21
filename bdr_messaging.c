@@ -88,7 +88,7 @@ bdr_process_remote_message(StringInfo s)
 	msg_type = pq_getmsgint(&message, 4);
 	bdr_getmsg_nodeid(&message, &origin_node, true);
 
-	elog(DEBUG1, "message type %s from "BDR_NODEID_FORMAT_WITHNAME" at %X/%X",
+	elog(DEBUG1, "received message type %s from "BDR_NODEID_FORMAT_WITHNAME" at %X/%X",
 		 bdr_message_type_str(msg_type),
 		 BDR_NODEID_FORMAT_WITHNAME_ARGS(origin_node),
 		 (uint32) (lsn >> 32), (uint32) lsn);
@@ -119,6 +119,12 @@ bdr_prepare_message(StringInfo s, BdrMessageType message_type)
 	BDRNodeId myid;
 	
 	bdr_make_my_nodeid(&myid);
+
+	elog(DEBUG2, "preparing message type %s in %p from "BDR_NODEID_FORMAT_WITHNAME,
+		 bdr_message_type_str(message_type),
+		 (void*)s,
+		 BDR_NODEID_FORMAT_WITHNAME_ARGS(myid));
+
 #if PG_VERSION_NUM/100 == 904
 	/* channel. Only send on 9.4 since it's embedded in 9.6 messages */
 	pq_sendint(s, strlen(BDR_LOGICAL_MSG_PREFIX), 4);
@@ -146,6 +152,10 @@ bdr_send_message(StringInfo s, bool transactional)
 
 	lsn = LogLogicalMessage(BDR_LOGICAL_MSG_PREFIX, s->data, s->len, transactional);
 	XLogFlush(lsn);
+
+	elog(DEBUG3, "sending prepared message %p",
+		 (void*)s);
+
 	resetStringInfo(s);
 }
 
