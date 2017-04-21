@@ -2767,3 +2767,9 @@ bdr_apply_main(Datum main_arg)
 	 */
 	proc_exit(1);
 }
+
+bool
+IsBdrApplyWorker(void)
+{
+	return bdr_apply_worker != NULL;
+}
