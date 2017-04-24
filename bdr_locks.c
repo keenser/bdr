@@ -1806,8 +1806,13 @@ bdr_process_request_replay_confirm(const BDRNodeId * const node, XLogRecPtr requ
 	initStringInfo(&s);
 	bdr_prepare_message(&s, BDR_MESSAGE_REPLAY_CONFIRM);
 	pq_sendint64(&s, request_lsn);
+	/*
+	 * This is crash safe even though we don't update the replication origin
+	 * and FlushDatabaseBuffers() before replying. The message written to WAL
+	 * by bdr_send_message will not get decoded and sent by walsenders until it
+	 * is flushed to disk.
+	 */
 	bdr_send_message(&s, false);
-
 }
 
 
@@ -1849,6 +1854,10 @@ bdr_send_confirm_lock(void)
 	/*
 	 * Update state of lock. Do so in the same xact that confirms the
 	 * lock. That way we're safe against crashes.
+	 *
+	 * This is safe even though we don't force a synchronous commit,
+	 * because the message written to WAL by bdr_send_message will
+	 * not get decoded and sent by walsenders until it is flushed.
 	 */
 	/* Scan for a matching lock whose state needs to be updated */
 	snap = RegisterSnapshot(GetLatestSnapshot());
