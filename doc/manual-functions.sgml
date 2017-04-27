@@ -287,6 +287,27 @@
        </entry>
       </row>
 
+      <row id="function-bdr-acquire-global-lock" xreflabel="bdr.acquire_global_lock">
+       <entry>
+        <indexterm>
+         <primary>bdr.acquire_global_lock</primary>
+        </indexterm>
+        <literal><function>bdr.acquire_global_lock(<replaceable>mode text</replaceable>)</function></literal>
+       </entry>
+       <entry>void</entry>
+       <entry>
+        Acquire the <link linkend="ddl-replication-locking">global DDL lock</>
+        in <replaceable>mode</replaceable> and block until the lock is fully
+        acquired. Raises an <literal>ERROR</> if lock acqusition cannot succeed
+        at this time. May block indefinitely if a node is down/unreachable or
+        extremely lagged, so consider setting a <literal>statement_timeout</>.
+        The lock is released when the acquiring transaction commits or rolls
+        back (and not before). BDR automatically acquires this lock when required,
+        so this function is mostly useful for test and diagnostic purposes.
+        Possible lock modes are <literal>ddl_lock</> and <literal>write_lock</>.
+       </entry>
+      </row>
+
       <row>
        <entry>
         <indexterm>
