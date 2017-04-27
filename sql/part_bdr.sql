@@ -120,7 +120,10 @@ DROP EXTENSION bdr;
 SELECT bdr.bdr_is_active_in_db();
 
 -- Strip BDR from this node entirely and convert global sequences to local.
+BEGIN;
+SET LOCAL client_min_messages = 'notice';
 SELECT bdr.remove_bdr_from_local_node(true, true);
+COMMIT;
 
 SELECT bdr.bdr_is_active_in_db();
 

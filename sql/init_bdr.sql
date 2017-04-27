@@ -75,8 +75,6 @@ BEGIN;
 
 SELECT * FROM ddl_info;
 
-SHOW search_path;
-
 SELECT bdr.bdr_replicate_ddl_command($DDL$
 CREATE OR REPLACE FUNCTION public.bdr_regress_variables(
     OUT readdb1 text,
@@ -91,10 +89,6 @@ SELECT
     current_setting('bdrtest.writedb2')
 $f$;
 $DDL$);
-
--- bdr.bdr_replicate_ddl_command doesn't persistently
--- set search_path
-SHOW search_path;
 
 SELECT * FROM ddl_info;
 

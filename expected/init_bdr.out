@@ -169,12 +169,6 @@ SELECT * FROM ddl_info;
                   | f          |           | nolock     | t             | f               | f                 |         0 |      1 |                0 |               0 |               0 | f
 (1 row)
 
-SHOW search_path;
-   search_path   
------------------
- "$user", public
-(1 row)
-
 SELECT bdr.bdr_replicate_ddl_command($DDL$
 CREATE OR REPLACE FUNCTION public.bdr_regress_variables(
     OUT readdb1 text,
@@ -192,14 +186,6 @@ $DDL$);
  bdr_replicate_ddl_command 
 ---------------------------
  
-(1 row)
-
--- bdr.bdr_replicate_ddl_command doesn't persistently
--- set search_path
-SHOW search_path;
-   search_path   
------------------
- "$user", public
 (1 row)
 
 SELECT * FROM ddl_info;

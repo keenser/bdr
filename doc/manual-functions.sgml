@@ -305,6 +305,7 @@
         back (and not before). BDR automatically acquires this lock when required,
         so this function is mostly useful for test and diagnostic purposes.
         Possible lock modes are <literal>ddl_lock</> and <literal>write_lock</>.
+        See also <xref linkend="catalog-bdr-locks">.
        </entry>
       </row>
 

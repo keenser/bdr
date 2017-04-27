@@ -194,6 +194,158 @@
   <!-- TODO: column definitions, example content -->
  </sect1>
 
+ <sect1 id="catalog-bdr-locks" xreflabel="bdr.bdr_locks">
+  <title>bdr.bdr_locks</title>
+
+  <para>
+   <literal>bdr.bdr_locks</literal> is a view exposing the state of BDR's <link
+   linkend="catalog-bdr-node-slots">global DDL locking system</>. It can be used to
+   diagnose DDL locking problems and monitor the system. Query this view for lock
+   state instead of using <xref linkend="catalog-bdr-global-locks"> directly.
+  </para>
+
+  <para>
+   The information in this view is local to each node. It will not necessarily
+   be the same on every node in a BDR group. If nothing else, the
+   <structfield>lock_state</structfield> on the node acquiring or holding the
+   global DDL lock will always be different to the state on the other nodes.
+  </para>
+
+  <table>
+   <title><structname>bdr.bdr_locks</> Columns</title>
+  
+   <tgroup cols="4">
+    <thead>
+     <row>
+      <entry>Name</entry>
+      <entry>Type</entry>
+      <entry>References</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><structfield>owner_is_my_node</structfield></entry>
+      <entry><type>boolean</type></entry>
+      <entry></entry>
+      <entry>True unless another node is known to hold or be acquiring the global DDL lock</entry>
+     </row>
+     <row>
+      <entry><structfield>owner_sysid</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_sysid</structfield></entry>
+      <entry>Node identity of the node holding or acquiring the lock</entry>
+     </row>
+     <row>
+      <entry><structfield>owner_timeline</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_timeline</structfield></entry>
+      <entry>Node identity of the node holding or acquiring the lock</entry>
+     </row>
+     <row>
+      <entry><structfield>owner_dboid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_dboid</structfield></entry>
+      <entry>Node identity of the node holding or acquiring the lock</entry>
+     </row>
+     <row>
+      <entry><structfield>owner_node_name</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_name</structfield></entry>
+      <entry>Node name of the node holding or acquiring the lock</entry>
+     </row>
+     <row>
+      <entry><structfield>lock_mode</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>Requested/held lock mode for DDL lock, or null if no locking currently in progress. Current modes are <literal>ddl_lock</> and <literal>write_lock</>.</entry>
+     </row>
+     <row>
+      <entry><structfield>lock_state</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>Progress of lock acquisition, explained in breakout below.</entry>
+     </row>
+     <row>
+      <entry><structfield>owner_local_pid</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry>Process ID of backend acquiring lock if the locker is local to the current node. Null if there is no lock or the locker is on a different node. (A future version may report PIDs for remote nodes, so do not rely on this).</entry>
+     </row>
+     <row>
+      <entry><structfield>owner_is_my_backend</structfield></entry>
+      <entry><type>boolean</type></entry>
+      <entry></entry>
+      <entry>True only if the currently querying backend on the local node is acquiring or holds the lock. A shortcut for testing <structfield>owner_local_pid</> and <structfield>owner_node_name</> etc.</entry>
+     </row>
+     <row>
+      <entry><structfield>owner_replorigin</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><structname>pg_catalog.pg_replorigin</structname><structfield>.oid</structfield></entry>
+      <entry>Replication origin ID for the node acquiring/holding the lock. You should usually look at the node name or identity tuple instead.</entry>
+     </row>
+     <row>
+      <entry><structfield>lockcount</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry>Number of locks held. Debug parameter. (Always 0 or 1).</entry>
+     </row>
+     <row>
+      <entry><structfield>npeers</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry>Number of nodes known to be participating in locking. Debug parameter.</entry>
+     </row>
+     <row>
+      <entry><structfield>npeers_confirmed</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry>Number of peers for which a confirmation reply has been processed on this node, if lock acquisition is in progress (but not yet complete) and this node is the locker (state <literal>acquire_tally_confirmations</>). Debug parameter. Will rarely be equal to <structfield>npeers</> since that successfully concludes a locking request.</entry>
+     </row>
+     <row>
+      <entry><structfield>npeers_declined</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry>Number of peers for which a decline-lock reply has been processed on this node, if lock acquisition is in progress (but not yet complete) and this node is the locker (state <literal>acquire_tally_confirmations</>). Debug parameter. Likely to always be 0 since one decline terminates a locking request.</entry>
+     </row>
+     <row>
+      <entry><structfield>npeers_replayed</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry>Number of peers that have confirmed successful replay up to <replaceable>replay_lsn</> for this node. Node will be in state <literal>peer_catchup</>.</entry>
+     </row>
+     <row>
+      <entry><structfield>replay_upto</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry></entry>
+      <entry><acronym>LSN</> (Log Sequence Number, i.e. WAL position) of local node up to which peers must replay before they can send replay confirmation. The current replay position can be seen in peer nodes' <structname>pg_stat_replication</>.<structfield>replay_location</> entries for this node.</entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+
+  <para>
+   See also <xref linkend="ddl-replication"> and <xref linkend="monitoring">.
+   For more information on how global DDL locking works, see <xref
+   linkend="ddl-replication-locking">.
+  </para>
+
+  <para>
+   Possible lock states are:
+   <itemizedlist>
+    <listitem><para><literal>nolock</literal> - There is no locking activity on the node</para></listitem>
+    <listitem><para><literal>acquire_tally_confirmations</literal> - This node is acquiring the global DDL lock. <structfield>owner_local_pid</structfield> contains the pid of the acquiring transaction. It has taken the local DDL lock and has sent lock requests to peers. It is waiting for all peers to respond. The count of peer responses is tallied in <structfield>npeers_confirmed</structfield>.</para></listitem>
+    <listitem><para><literal>acquire_acquired</literal> - This node has acquired the global DDL lock. <structfield>owner_local_pid</structfield> contains the pid of the acquiring transaction. All peers have confirmed that their local locks are acquired.</para></listitem>
+    <listitem><para><literal>peer_begin_catchup</literal> - This node has just received a lock request from another node that wants to acquire the DDL lock.</para></listitem>
+    <listitem><para><literal>peer_cancel_xacts</literal> - A peer node wants to acquire the global DDL lock in <literal>write_lock</literal> mode. This node is waiting for local write transactions to complete within their grace periods or respond to cancel requests.</para></listitem>
+    <listitem><para><literal>peer_catchup</literal> - A peer node wants to acquire the global DDL lock in <literal>write_lock</literal> mode. This node has no local write transactions running. It has sent replay confirmation requests for peers to confirm replay up to lsn <structfield>replay_upto</> from its peers and is waiting for their responses, which are tallied in <structfield>npeers_replayed</structfield></para></listitem>
+    <listitem><para><literal>peer_confirmed</literal> - A peer node wants to acquire the global DDL lock. This node has acquired its local DDL lock and sent confirmation to the peer.</para></listitem>
+   </itemizedlist>
+   These correspond to <type>BDRLockState</type> values in the source code.
+  </para>
+
+ </sect1>
+
  <sect1 id="catalog-bdr-global-locks" xreflabel="bdr.bdr_global_locks">
   <title>bdr.bdr_global_locks</title>
 
@@ -204,17 +356,13 @@
   </para>
 
   <para>
-   Note that a <literal>state</literal> of <literal>acquired</literal> only indicates
-   successful acquisition of the lock <emphasis>on this node</emphasis>; other nodes
-   may still be trying to acquire their local DDL lock in response to a global
-   DDL lock request, so it might not be granted yet. Details on how this table
-   works can be found in the comments at the start of the source file
-   <filename>bdr_locks.c</filename>.
+   You are looking for <link linkend="catalog-bdr-locks"><literal>bdr.bdr_locks</></>, the information
+   view, not for this table.  See also <xref
+   linkend="ddl-replication-locking">.
   </para>
 
   <para>
-   See <xref linkend="ddl-replication-locking"> for more detail on how the
-   global DDL lock works.
+   You should never need to access this table.
   </para>
 
  </sect1>

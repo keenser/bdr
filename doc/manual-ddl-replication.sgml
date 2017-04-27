@@ -23,8 +23,8 @@
 
  <para>
   &bdr; is significantly different to standalone PostgreSQL when it
-  comes to DDL, and treating it as the same is a fast path to replication
-  problems.
+  comes to DDL and schema changes, and treating it as the same is a fast path
+  to replication problems.
  </para>
 
  <important>
@@ -89,7 +89,9 @@
     <para>
      DDL is a heavier weight operation than on standalone
      PostgreSQL. Performing DDL on any node will acquire a "global DDL lock". 
-	</para>
+     The global DDL lock may also be acquired manually with
+     <xref linkend="function-bdr-acquire-global-lock">.
+    </para>
 
 	<para>
      This causes new transactions that attempt write operations <emphasis>on any
@@ -151,7 +153,8 @@ HINT:  Node (6313760193895071967,1,16385) in the cluster is already performing D
 	 You cannot see the global DDL lock in the <filename>pg_locks</filename>
 	 view, as it is not implemented using a heavyweight lock. See
 	 <xref linkend="monitoring"> for guidance on monitoring BDR,
-	 including DDL locking.
+	 including DDL locking. The <xref linkend="catalog-bdr-locks"> view
+  provides diagnostic information on lock state.
 	</para>
 
 	<para>
