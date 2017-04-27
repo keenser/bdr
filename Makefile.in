@@ -30,12 +30,21 @@ DATA_built = \
 	extsql/bdr--2.0.0.0.sql
 
 DOCS = README.bdr bdr.conf.sample
-SCRIPTS = scripts/bdr_initial_load bdr_init_copy bdr_dump
-all: scripts/bdr_initial_load bdr_init_copy bdr_dump
+# We can't use SCRIPTS_built because it isn't supported by 9.4 and we can't use
+# SCRIPTS because it breaks VPATH builds.  So we'll just inject support later
+# for SCRIPTS_built if PGXS doesn't support it.
+SCRIPTS_built = \
+	scripts/bdr_initial_load \
+	bdr_init_copy \
+	bdr_dump
+all: \
+	scripts/bdr_initial_load \
+	bdr_init_copy \
+	bdr_dump
 
 # We can't use Makefile.global's MAJORVERSION here yet
 ifneq ($(BDR_PG_MAJORVERSION),9.4)
-SCRIPTS += bdr_resetxlog
+SCRIPTS_built += bdr_resetxlog
 all: bdr_resetxlog
 endif
 
@@ -273,6 +282,17 @@ additional-maintainer-clean: clean
 # typical installcheck users do not have (e.g. buildfarm clients).
 installcheck: ;
 
+ifeq ($(BDR_PG_MAJORVERSION),9.4)
+# We must emulate SCRIPTS_built for Pg 9.4 as PGXS doesn't support it
+install: install-scripts
+install-scripts:
+	$(INSTALL_SCRIPT) $(SCRIPTS_built) '$(DESTDIR)$(bindir)/'
+.PHONY: install-scripts
+installdirs: installdirs-scripts
+installdirs-scripts:
+	$(MKDIR_P) '$(DESTDIR)$(bindir)'
+.PHONY: installdirs-scripts
+endif
 
 check: regresscheck isolationcheck prove_installcheck
 
