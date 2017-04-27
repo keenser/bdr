@@ -24,7 +24,6 @@
     <listitem><para><literal>c</literal>- Joining: The node is catching up to the target node and is not yet ready to participate with the &bdr; group.  </para> </listitem>
     <listitem><para><literal>o</literal>- Joining: The node has caught up with the target node and is waiting for all inbound and outbound slots to be created.  </para> </listitem>
     <listitem><para><literal>k</literal>- Parting/Parted: The node has been 'killed' or removed by the user with the function <literal>bdr.bdr_part_by_node_names</literal>.</para> </listitem>
-    <!-- TODO: list incomplete for 0.9 -->
    </itemizedlist>
   </para>
 
@@ -39,12 +38,12 @@
    for the connection and replay status of a node. See <xref linkend="monitoring">.
   </para>
 
-  <warning>
-   <para>
-    Do not directly modify <literal>bdr.bdr_nodes</literal>. Use the provided
-    node management functions instead. See <xref linkend="functions-node-mgmt">.
-   </para>
-  </warning>
+  <para>
+   Avoid directly modifying <literal>bdr.bdr_nodes</literal>. Use the provided
+   node management functions instead. See <xref linkend="functions-node-mgmt">.
+   It is safe to delete nodes entries that have <literal>node_state</>
+   <literal>'k'</> to re-use their node names.
+  </para>
 
   <!-- TODO: column definitions, copy from wiki -->
 
@@ -58,12 +57,12 @@
    connection strings used for each node to connect to each other node.
   </para>
 
-  <warning>
-   <para>
-    Do not directly modify <literal>bdr.bdr_connections</literal>. Use the provided
-    node management functions instead. See <xref linkend="functions-node-mgmt">.
-   </para>
-  </warning>
+  <para>
+   Avoid directly modifying <literal>bdr.bdr_connections</literal>. Use the
+   provided node management functions instead. See <xref
+   linkend="functions-node-mgmt">. It is safe to modify the connection
+   string.
+  </para>
 
   <!-- TODO: column definitions, copy from wiki -->
 
