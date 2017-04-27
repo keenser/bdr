@@ -419,55 +419,9 @@
        <entry>void</entry>
        <entry>
         <para>
-         Discard (skip over) changes not yet replayed from the peer with identity
-         (<replaceable>sysid</replaceable>,<replaceable>timeline</replaceable>,<replaceable>dboid</replaceable>),
-         resuming replay at the first commit that begins after
-         <replaceable>skip_to_lsn</replaceable>. A commit that begins exactly
-         at the specified LSN is skipped, not replayed.
+         Discard (skip over) changes in the replication stream. Used for recovering from replication failures.
+         See <link linkend="function-bdr-skip-changes-upto">details below</link>.
         </para>
-        <warning>
-         <para>
-          This function is <emphasis>very dangerous</emphasis>. Improper use can completely break your
-          replication setup, and almost any use will cause your cluster nodes to become inconsistent
-          with each other. It is intended only for recovery from situations where replication is broken
-          by un-replayable DDL or similar.
-         </para>
-        </warning>
-        <para>
-         Use the <link
-         linkend="guc-bdr-trace-replay"><literal>bdr.trace_replay</literal></link>
-         setting to enable replay tracing and find the problem change to skip,
-         or look at the error context emitted in log messages if there's an
-         error. You may need to set <literal>log_error_verbosity =
-         verbose</literal> in <filename>postgresql.conf</filename> to see the
-         full error context. Skip to the commit LSN reported in the error, like
-         <literal>"in commit 0123/ABCD0123"</literal>.
-        </para>
-        <para>
-         Because the change is still committed on the node it originated from
-         and possibly on other nodes, to restore consistency you'll have to
-         perform some transactions manually with <link
-         linkend="guc-bdr-do-not-replicate"><literal>bdr.do_not_replicate</literal></link>,
-         <link
-         linkend="guc-bdr-permit-unsafe-ddl-commands"><literal>bdr.permit_unsafe_ddl_commands</literal></link>
-         and/or <link
-         linkend="guc-bdr-skip-ddl-replication"><literal>bdr.skip_ddl_replication</literal></link>
-         options set to restore consistency by manually undoing the operations
-         on some nodes or manually applying them on the other nodes.
-        </para>
-        <note>
-         <para>
-         BDR still cares about dropped columns in tables, so if you dropped a
-         column in one node then skipped the drop in another, you
-         <emphasis>must</emphasis> manually drop the column in the one you
-         skipped it in; adding the column back on the other side does
-         <emphasis>not</emphasis> have the same effect because BDR uses the
-         underlying column attribute numbers from
-         <literal>pg_catalog.pg_attribute</literal>, not column names, to
-         replicate... and those numbers change when you drop and re-create a
-         column.
-        </para>
-       </note>
        </entry>
       </row>
 
@@ -475,6 +429,61 @@
     </tgroup>
    </table>
   </para>
+
+  <sect2 id="function-bdr-skip-changes-upto" xreflabel="bdr.skip_changes_upto">
+   <title><literal>bdr.skip_changes_upto</literal></title>
+
+   <para>
+    Discard (skip over) changes not yet replayed from the peer with identity
+    (<replaceable>sysid</replaceable>,<replaceable>timeline</replaceable>,<replaceable>dboid</replaceable>),
+    resuming replay at the first commit that begins after
+    <replaceable>skip_to_lsn</replaceable>. A commit that begins exactly
+    at the specified LSN is skipped, not replayed.
+   </para>
+   <warning>
+    <para>
+     This function is <emphasis>very dangerous</emphasis>. Improper use can completely break your
+     replication setup, and almost any use will cause your cluster nodes to become inconsistent
+     with each other. It is intended only for recovery from situations where replication is broken
+     by un-replayable DDL or similar.
+    </para>
+   </warning>
+   <para>
+    Use the <link
+    linkend="guc-bdr-trace-replay"><literal>bdr.trace_replay</literal></link>
+    setting to enable replay tracing and find the problem change to skip,
+    or look at the error context emitted in log messages if there's an
+    error. You may need to set <literal>log_error_verbosity =
+    verbose</literal> in <filename>postgresql.conf</filename> to see the
+    full error context. Skip to the commit LSN reported in the error, like
+    <literal>"in commit 0123/ABCD0123"</literal>.
+   </para>
+   <para>
+    Because the change is still committed on the node it originated from
+    and possibly on other nodes, to restore consistency you'll have to
+    perform some transactions manually with <link
+    linkend="guc-bdr-do-not-replicate"><literal>bdr.do_not_replicate</literal></link>,
+    <link
+    linkend="guc-bdr-permit-unsafe-ddl-commands"><literal>bdr.permit_unsafe_ddl_commands</literal></link>
+    and/or <link
+    linkend="guc-bdr-skip-ddl-replication"><literal>bdr.skip_ddl_replication</literal></link>
+    options set to restore consistency by manually undoing the operations
+    on some nodes or manually applying them on the other nodes.
+   </para>
+   <note>
+    <para>
+     BDR still cares about dropped columns in tables, so if you dropped a
+     column in one node then skipped the drop in another, you
+     <emphasis>must</emphasis> manually drop the column in the one you
+     skipped it in; adding the column back on the other side does
+     <emphasis>not</emphasis> have the same effect because BDR uses the
+     underlying column attribute numbers from
+     <literal>pg_catalog.pg_attribute</literal>, not column names, to
+     replicate... and those numbers change when you drop and re-create a
+     column.
+    </para>
+   </note>
+  </sect2>
 
   <sect2 id="functions-node-mgmt-subscribe" xreflabel="bdr.bdr_subscribe">
    <title><function>bdr.bdr_subscribe</function></title>
