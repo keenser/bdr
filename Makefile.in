@@ -298,7 +298,7 @@ REGRESSCHECKS= \
 	$(FAILING_TESTS) \
 	ddl_lock \
 	$(DDLTESTS) \
-	$(DDLTESTS_FUN) \
+	$(DDLTESTS_FUNC) \
 	dml_basic \
 	dml_contrib \
 	dml_delete_pk \
