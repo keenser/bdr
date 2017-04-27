@@ -645,15 +645,19 @@ sub wait_for_apply {
 # timers must be passed to wait_acquire_ddl_lock.
 sub start_acquire_ddl_lock {
     my ($node, $mode, $timer) = @_;
-    my ($psql_stdin, $psql_stdout, $psql_stderr) = ('','','');
+    my ($psql_stdout, $psql_stderr) = ('','');
+
+    my $psql_stdin = qq[
+BEGIN;
+SELECT pg_backend_pid() || '=pid';
+SELECT 'acquired' FROM bdr.acquire_global_lock('$mode');
+];
+
     my $psql = IPC::Run::start(
         ['psql', '-qAtX', '-d', $node->connstr($bdr_test_dbname), '-f', '-'],
         '<', \$psql_stdin, '>', \$psql_stdout, '2>', \$psql_stderr,
         $timer);
 
-    $psql_stdin .= "BEGIN;\n";
-    $psql_stdin .= "SELECT pg_backend_pid() || '=pid';\n";
-    $psql_stdin .= "SELECT 'acquired' FROM bdr.acquire_global_lock('$mode');\n";
     $psql->pump until $psql_stdout =~ qr/([[:digit:]]+)=pid/;
 
     my $backend_pid = $1;
@@ -668,9 +672,9 @@ sub start_acquire_ddl_lock {
 
     return {
         handle => $psql,
-        stdin => $psql_stdin,
-        stdout => $psql_stdout,
-        stderr => $psql_stderr,
+        stdin => \$psql_stdin,
+        stdout => \$psql_stdout,
+        stderr => \$psql_stderr,
         node => $node,
         backend_pid => $backend_pid,
         mode => $mode
@@ -682,6 +686,8 @@ sub start_acquire_ddl_lock {
 # By default waits forever (or until timeout supplied at start),
 # and dies if acquisition fails.
 #
+# FIXME: this should now use the bdr.bdr_locks view
+#
 sub wait_acquire_ddl_lock {
     my ($psql, $timer, $no_error_die) = @_;
     my $success = 1;
@@ -690,19 +696,21 @@ sub wait_acquire_ddl_lock {
         $psql->{'handle'}->pump;
         last if defined($timer) && $timer->is_expired;
     }
-    until ($psql->{'stdout'} =~ 'acquired' or $psql->{'stderr'} =~ 'ERROR' or !$psql->{'handle'}->pumpable);
+    until (${$psql->{'stdout'}} =~ 'acquired' or ${$psql->{'stderr'}} =~ 'ERROR' or !$psql->{'handle'}->pumpable);
 
-    if ($psql->{stderr} =~ 'ERROR')
+    print("acquired or failed\n");
+
+    if (${$psql->{stderr}} =~ 'ERROR')
     {
-        $psql->{stdin} .= "\\q\n";
+        ${$psql->{stdin}} .= "\\q\n";
         $psql->{handle}->pump;
         $psql->{handle}->kill_kill;
-        croak("could not acquire global ddl lock in mode " . $psql->{mode} . " on " . $psql->{node}->name . ": " . $psql->{stderr})
+        croak("could not acquire global ddl lock in mode " . $psql->{mode} . " on " . $psql->{node}->name . ": " . ${$psql->{stderr}})
             unless($no_error_die);
     }
 
     # TODO, better test using status functions?
-    return $psql->{'stdout'} =~ 'acquired';
+    return ${$psql->{'stdout'}} =~ 'acquired';
 }
 
 sub cancel_ddl_lock {
@@ -712,7 +720,6 @@ sub cancel_ddl_lock {
 
 sub release_ddl_lock {
     my $psql = @_;
-    my $stdin = 
 
     $psql->{stdin} .= "ROLLBACK;\n\\echo ROLLBACK\n\\q";
     $psql->finish;
