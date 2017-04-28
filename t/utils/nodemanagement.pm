@@ -17,6 +17,7 @@ require "t/backports/PostgresNode_96.pl";
 use TestLib;
 use Test::More;
 use IPC::Run;
+use Time::HiRes;
 use vars qw($bdr_test_dbname);
 
 use Carp 'verbose';
@@ -661,6 +662,7 @@ SELECT 'acquired' FROM bdr.acquire_global_lock('$mode');
     $psql->pump until $psql_stdout =~ qr/([[:digit:]]+)=pid/;
 
     my $backend_pid = $1;
+    print("pid of backend acquiring ddl lock is $backend_pid\n");
 
     # Acquire should be in progress or finished
     if ($node->safe_psql($bdr_test_dbname, qq[SELECT 1 FROM pg_stat_activity WHERE query LIKE '%bdr.acquire_global_lock%' AND pid = $backend_pid;]) ne '1')
@@ -668,7 +670,15 @@ SELECT 'acquired' FROM bdr.acquire_global_lock('$mode');
         croak("cannot find expected query   SELECT 'acquired' FROM bdr.acquire_global_lock...   in pg_stat_activity\n");
     }
 
-    print("pid of backend acquiring ddl lock is $backend_pid\n");
+	$node->poll_query_until($bdr_test_dbname, q[SELECT lock_state <> 'nolock' FROM bdr.bdr_locks]);
+
+    my $status = $node->safe_psql($bdr_test_dbname, q[SELECT lock_state, lock_mode, owner_is_my_node, owner_is_my_backend FROM bdr.bdr_locks]);
+	if (not ($status =~ qr/(?:acquire_acquired|acquire_tally_confirmations)\|$mode\|t\|f/))
+	{
+		croak("expected lock info (acquire_acquired|acquire_tally_confirmations)|$mode|t|f, got $status");
+	}
+
+	print("lock acquire in progress");
 
     return {
         handle => $psql,
@@ -685,8 +695,6 @@ SELECT 'acquired' FROM bdr.acquire_global_lock('$mode');
 #
 # By default waits forever (or until timeout supplied at start),
 # and dies if acquisition fails.
-#
-# FIXME: this should now use the bdr.bdr_locks view
 #
 sub wait_acquire_ddl_lock {
     my ($psql, $timer, $no_error_die) = @_;
@@ -709,7 +717,7 @@ sub wait_acquire_ddl_lock {
             unless($no_error_die);
     }
 
-    # TODO, better test using status functions?
+	# TODO: double check against bdr.bdr_locks
     return ${$psql->{'stdout'}} =~ 'acquired';
 }
 
