@@ -126,11 +126,12 @@
  *
  *    There's some additional complications to handle crash safety:
  *
- *    Everytime a node crashes it sends out a 'startup' message causing all
- *    other nodes to release locks held by it before the crash.
- *    Then the bdr_global_locks table is read. All existing locks are
- *    acquired. If a lock still is in 'catchup' phase the lock acquiration
- *    process is re-started at step 6)
+ *    Everytime a node starts up (after crash or clean shutdown) it sends out a
+ *    'startup' message causing all other nodes to release locks held by it
+ *    before shutdown/crash. Then the bdr_global_locks table is read. All
+ *    existing local DDL locks held on behalf of other peers are acquired. If a
+ *    lock still is in 'catchup' phase the local lock acquiration process is
+ *    re-started at step 6)
  *
  *    Because only one decline is sufficient to stop a DDL lock acquisition,
  *    it's likely that two concurrent attempts to acquire the DDL lock from
