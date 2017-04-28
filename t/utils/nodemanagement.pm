@@ -678,7 +678,7 @@ SELECT 'acquired' FROM bdr.acquire_global_lock('$mode');
 		croak("expected lock info (acquire_acquired|acquire_tally_confirmations)|$mode|t|f, got $status");
 	}
 
-	print("lock acquire in progress");
+	print("lock acquire in progress...\n");
 
     return {
         handle => $psql,
@@ -727,10 +727,10 @@ sub cancel_ddl_lock {
 }
 
 sub release_ddl_lock {
-    my $psql = @_;
+    my $psql = shift;
 
-    $psql->{stdin} .= "ROLLBACK;\n\\echo ROLLBACK\n\\q";
-    $psql->finish;
+    ${$psql->{stdin}} .= "ROLLBACK;\n\\echo ROLLBACK\n\\q";
+    $psql->{handle}->finish;
 }
 
 1;
