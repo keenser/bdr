@@ -48,7 +48,8 @@ my $handle = start_acquire_ddl_lock($node_0, 'write_lock');
 wait_acquire_ddl_lock($handle);
 
 print "attempting insert 0\n";
-my($ret,$stdout,$stderr) = $node_0->psql($bdr_test_dbname, 'INSERT INTO write_me(x) VALUES (42)');
+my ($stdout,$stderr);
+($ret,$stdout,$stderr) = $node_0->psql($bdr_test_dbname, 'INSERT INTO write_me(x) VALUES (42)');
 is($ret, 3, 'write failed on lock holder node_0');
 like($stderr, qr/canceling statement due to global lock timeout/, 'write on lock holder failed with global lock timeout');
 print "attempting insert 1\n";

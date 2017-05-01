@@ -303,6 +303,7 @@ static void bdr_locks_on_unlock(void);
 static int ddl_lock_log_level(int);
 static void register_holder_xact_callback(void);
 static void register_state_xact_callback(void);
+static void bdr_locks_release_local_ddl_lock(const BDRNodeId * const lock);
 
 static BdrLocksCtl *bdr_locks_ctl;
 
@@ -820,14 +821,14 @@ register_holder_xact_callback(void)
 
 /*
  * Callback to update shmem state after we change global ddl lock state in
- * bdr_global_locks. Only called from apply worker.
+ * bdr_global_locks. Only called from apply worker and perdb worker.
  */
 static void
 bdr_lock_state_xact_callback(XactEvent event, void *arg)
 {
 	Assert(arg == NULL);
 	Assert(IsBackgroundWorker);
-	Assert(IsBdrApplyWorker());
+	Assert(IsBdrApplyWorker()||IsBdrPerdbWorker());
 
 	if (event == XACT_EVENT_COMMIT && bdr_lock_state_xact_callback_info.pending)
 	{
@@ -1581,9 +1582,85 @@ decline:
  * Another node has released the global DDL lock, update our local state.
  *
  * Runs in the apply worker.
+ *
+ * The only time that !bdr_nodeid_eq(origin,lock) is if we're in
+ * catchup mode and relaying locking messages from peers.
  */
 void
 bdr_process_release_ddl_lock(const BDRNodeId * const origin, const BDRNodeId * const lock)
+{
+
+	if (!check_is_my_origin_node(origin))
+		return;
+
+	elog(ddl_lock_log_level(DDL_LOCK_TRACE_PEERS),
+		 LOCKTRACE "global lock released by "BDR_NODEID_FORMAT_WITHNAME,
+		 BDR_NODEID_FORMAT_WITHNAME_ARGS(*lock));
+
+	bdr_locks_release_local_ddl_lock(lock);
+}
+
+/*
+ * Peer node has been parted from the system. We need to clear up any
+ * local DDL lock it may hold so that we can continue to process
+ * writes.
+ *
+ * This must ONLY be called after the apply worker for the peer
+ * successfully is terminated.
+ */
+void
+bdr_locks_node_parted(BDRNodeId *node)
+{
+	bool peer_holds_lock = false;
+	BDRNodeId owner;
+
+	bdr_locks_find_my_database(false);
+
+	elog(INFO, "XXX testing if node holds ddl lock");
+
+	/*
+ 	 * Rather than looking up the replication origin of the
+	 * node being parted, which might no longer exist, check
+	 * if the lock is held and if so, if the node id matches.
+	 *
+	 * We could just call bdr_locks_release_local_ddl_lock but that'll
+	 * do table scans etc we can avoid by taking a quick look at shmem
+	 * first.
+	 */
+	LWLockAcquire(bdr_locks_ctl->lock, LW_SHARED);
+	if (bdr_my_locks_database->lock_type > BDR_LOCK_NOLOCK)
+	{
+		StartTransactionCommand();
+		bdr_fetch_sysid_via_node_id(bdr_my_locks_database->lock_holder, &owner);
+
+		elog(ddl_lock_log_level(DDL_LOCK_TRACE_PEERS),
+			 LOCKTRACE "global lock held by "BDR_NODEID_FORMAT_WITHNAME" released after node part",
+			 BDR_NODEID_FORMAT_WITHNAME_ARGS(*node));
+
+		peer_holds_lock = bdr_nodeid_eq(node, &owner);
+		CommitTransactionCommand();
+
+		elog(INFO, "XXX target peer holds lock: %d", peer_holds_lock);
+	}
+	LWLockRelease(bdr_locks_ctl->lock);
+
+	if (peer_holds_lock)
+	{
+		elog(INFO, "XXX attempting to release lock");
+		bdr_locks_release_local_ddl_lock(node);
+		elog(INFO, "XXX attempted to release lock");
+	}
+}
+
+/*
+ * Release any global DDL lock we may hold for node 'lock'.
+ *
+ * This is invoked from the apply worker when we get release messages,
+ * and by node part handling when parting a node that may still hold
+ * the DDL lock.
+ */
+static void
+bdr_locks_release_local_ddl_lock(const BDRNodeId * const lock)
 {
 	Relation		rel;
 	Snapshot		snap;
@@ -1593,18 +1670,11 @@ bdr_process_release_ddl_lock(const BDRNodeId * const origin, const BDRNodeId * c
 	Latch		   *latch;
 	StringInfoData	s;
 
-	if (!check_is_my_origin_node(origin))
-		return;
-
 	/* FIXME: check db */
 
 	bdr_locks_find_my_database(false);
 
 	initStringInfo(&s);
-
-	elog(ddl_lock_log_level(DDL_LOCK_TRACE_PEERS),
-		 LOCKTRACE "global lock released by "BDR_NODEID_FORMAT_WITHNAME,
-		 BDR_NODEID_FORMAT_WITHNAME_ARGS(*lock));
 
 	/*
 	 * Remove row from bdr_locks *before* releasing the in memory lock. If we
@@ -1615,10 +1685,11 @@ bdr_process_release_ddl_lock(const BDRNodeId * const origin, const BDRNodeId * c
 	rel = heap_open(BdrLocksRelid, RowExclusiveLock);
 
 	/* Find any bdr_locks entry for the releasing peer */
-	scan = locks_begin_scan(rel, snap, origin);
+	scan = locks_begin_scan(rel, snap, lock);
 
 	while ((tuple = systable_getnext(scan)) != NULL)
 	{
+		elog(INFO, "XXX found global lock entry to delete in response to global lock release message");
 		elog(DEBUG2, "found global lock entry to delete in response to global lock release message");
 		simple_heap_delete(rel, &tuple->t_self);
 		bdr_locks_set_commit_pending_state(BDR_LOCKSTATE_NOLOCK);

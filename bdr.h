@@ -576,6 +576,7 @@ PGDLLEXPORT extern void bdr_supervisor_worker_main(Datum main_arg);
 extern void bdr_bgworker_init(uint32 worker_arg, BdrWorkerType worker_type);
 extern void bdr_supervisor_register(void);
 extern bool IsBdrApplyWorker(void);
+extern bool IsBdrPerdbWorker(void);
 
 extern Oid bdr_get_supervisordb_oid(bool missing_ok);
 

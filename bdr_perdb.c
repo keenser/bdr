@@ -53,6 +53,14 @@ PG_FUNCTION_INFO_V1(bdr_get_apply_pid);
 static bool xacthook_registered = false;
 static bool xacthook_connections_changed = false;
 
+static bool is_perdb_worker = true;
+
+bool
+IsBdrPerdbWorker(void)
+{
+	return is_perdb_worker;
+}
+
 /*
  * Scan shmem looking for a perdb worker for the named DB and
  * return its offset. If not found, return -1.
@@ -232,7 +240,9 @@ bdr_maintain_db_workers(void)
 	char				our_status;
 	BDRNodeId			myid;
 	List			   *parted_nodes = NIL;
+	List			   *nodes_to_forget = NIL;
 	ListCell		   *lcparted;
+	ListCell		   *lcforget;
 
 	bdr_make_my_nodeid(&myid);
 
@@ -274,9 +284,7 @@ bdr_maintain_db_workers(void)
 	bgw.bgw_notify_pid = 0;
 
 	StartTransactionCommand();
-
 	SPI_connect();
-
 	PushActiveSnapshot(GetTransactionSnapshot());
 
 	our_status = bdr_nodes_get_local_status(&myid);
@@ -311,12 +319,15 @@ bdr_maintain_db_workers(void)
 		HeapTuple	tuple;
 		BDRNodeId  *node;
 		char	   *node_sysid_s;
+		MemoryContext oldcontext;
 
 		bool		isnull;
 
 		tuple = SPI_tuptable->vals[i];
 
+		oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 		node = palloc(sizeof(BDRNodeId));
+		(void) MemoryContextSwitchTo(oldcontext);
 
 		node_sysid_s = SPI_getvalue(tuple, SPI_tuptable->tupdesc, BDR_NODES_ATT_SYSID);
 
@@ -420,6 +431,7 @@ bdr_maintain_db_workers(void)
 			ListCell *dc;
 			bool we_were_dropped;
 			NameData slot_name_dropped; /* slot of the dropped node */
+			MemoryContext oldcontext;
 
 			/*
 			 * If a remote node (got) parted, we can easily drop their slot.
@@ -467,15 +479,45 @@ bdr_maintain_db_workers(void)
 				elog(LOG, "dropped slot %s due to node part", slot_name);
 			}
 
-			/*
-			 * TODO: It'd be a good idea to set the slot to dead (in contrast
-			 * to being killed) here. That way we wouldn't constantly rescan
-			 * killed nodes.
-			 */
+			oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+			nodes_to_forget = lappend(nodes_to_forget, (void*)node);
+			(void) MemoryContextSwitchTo(oldcontext);
 		}
 	}
 
-	list_free_deep(parted_nodes);
+	PopActiveSnapshot();
+	SPI_finish();
+	/* The node cache needs to be invalidated as bdr_nodes may have changed */
+	bdr_nodecache_invalidate();
+	CommitTransactionCommand();
+
+	foreach (lcforget, nodes_to_forget)
+	{
+		BDRNodeId  *node = lfirst(lcforget);
+
+		/*
+		 * If this node held the global DDL lock, purge it. We can no
+		 * longer replicate changes from it so doing so is safe, it can
+		 * never release the lock, and we'll otherwise be unable to recover.
+		 */
+		bdr_locks_node_parted(node);
+
+		/*
+		 * TODO: if we leave it at 'k' we'll keep on re-checking it
+		 * over and over. But for now that's what we do.
+		 *
+		 * We could set the node as 'dead'. This is a local state, since it
+		 * could still be parting on other nodes. So we shouldn't just
+		 * update bdr_nodes, we'd have to do a non-replicated update in a
+		 * replicated table and it'd be ugly. We'll need a side-table
+		 * for local node state.
+		 *
+		 * Or we could delete the row locally. We're eventually consistent
+		 * anyway, right? We'd have to do that with do_not_replicate set.
+		 */
+	}
+
+	list_free_deep(nodes_to_forget);
 
 	/* If our own node is dead, don't start new connections to other nodes */
 	if (our_status == BDR_NODE_STATUS_KILLED)
@@ -483,6 +525,10 @@ bdr_maintain_db_workers(void)
 		elog(LOG, "this node has been parted, not starting connections");
 		goto out;
 	}
+
+	StartTransactionCommand();
+	SPI_connect();
+	PushActiveSnapshot(GetTransactionSnapshot());
 
 	/*
 	 * Look up connection entries for all nodes other than our own.
@@ -701,14 +747,13 @@ bdr_maintain_db_workers(void)
 		}
 	}
 
-out:
 	PopActiveSnapshot();
 	SPI_finish();
-
 	/* The node cache needs to be invalidated as bdr_nodes may have changed */
 	bdr_nodecache_invalidate();
-
 	CommitTransactionCommand();
+
+out:
 
 	elog(DEBUG2, "done registering apply workers");
 
@@ -751,6 +796,8 @@ bdr_perdb_worker_main(Datum main_arg)
 	StringInfoData		si;
 	bool				wait;
 	BDRNodeId			myid;
+
+	is_perdb_worker = true;
 
 	initStringInfo(&si);
 

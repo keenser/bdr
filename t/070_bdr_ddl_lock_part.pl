@@ -11,7 +11,7 @@ use Cwd;
 use Config;
 use PostgresNode;
 use TestLib;
-use Test::More tests => 21;
+use Test::More tests => 23;
 use utils::nodemanagement;
 
 # Create an upstream node and bring up bdr
@@ -64,8 +64,15 @@ TODO: {
 # Bug 2ndQuadrant/bdr-private#72
 TODO: {
     local $TODO = 'ddl lock release on part not implemented yet';
-    is( $node_0->safe_psql( $bdr_test_dbname, "SELECT state FROM bdr.bdr_global_locks"), '', "ddl lock released after part");
+    is( $node_0->safe_psql( $bdr_test_dbname, "SELECT lock_state FROM bdr.bdr_locks"), 'nolock', "ddl lock released after part");
 };
+
+# Because we have to terminate the apply worker it can take a little while for
+# the lock to be released.
+$node_0->poll_query_until($bdr_test_dbname, "SELECT lock_state = 'nolock' FROM bdr.bdr_locks");
+
+is( $node_0->safe_psql( $bdr_test_dbname, "SELECT lock_state FROM bdr.bdr_locks"), 'nolock', "ddl lock released after part");
+is( $node_0->safe_psql( $bdr_test_dbname, "SELECT state FROM bdr.bdr_global_locks"), '', "bdr.bdr_global_locks row removed");
 
 # TODO:
 #
