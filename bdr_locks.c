@@ -620,6 +620,10 @@ bdr_locks_startup(void)
 	bdr_my_locks_database->locked_and_loaded = true;
 }
 
+/*
+ * Called from the perdb worker to update our idea of the number of nodes
+ * in the group, when we process an update from shmem.
+ */
 void
 bdr_locks_set_nnodes(int nnodes)
 {
@@ -644,6 +648,11 @@ bdr_locks_set_nnodes(int nnodes)
 		 * normal. Node part doesn't take the DDL lock, but it's careful
 		 * to reject any in-progress DDL lock attempt or release any held
 		 * lock.
+		 *
+		 * FIXME: there's a race here where we could release the lock before
+		 * applying the change in the perdb worker. We should really perform
+		 * this test and update when we see the new bdr.bdr_nodes row arrive
+		 * instead. See 2ndQuadrant/bdr-private#97.
 		 */
 		ereport(WARNING,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
