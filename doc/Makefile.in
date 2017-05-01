@@ -58,4 +58,9 @@ maintainer-clean:
 	rm -rf html
 	rm -rf Makefile
 
+zip: html
+	cp -r html bdr-docs-$(BDR_VERSION)
+	zip -r bdr-docs-$(BDR_VERSION).zip bdr-docs-$(BDR_VERSION)
+	rm -rf bdr-docs-$(BDR_VERSION)
+
 .PHONY: html all
