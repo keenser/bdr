@@ -30,6 +30,10 @@ DATA_built = \
 	extsql/bdr--2.0.0.0.sql
 
 DOCS = README.bdr bdr.conf.sample
+
+# pgxs doesn't know how to handle directories of docs, or built docs, so the
+# html docs will get separate rules below
+
 # We can't use SCRIPTS_built because it isn't supported by 9.4 and we can't use
 # SCRIPTS because it breaks VPATH builds.  So we'll just inject support later
 # for SCRIPTS_built if PGXS doesn't support it.
@@ -251,9 +255,14 @@ bdr_dump: pg_dump_dir $(DUMPOBJS)
 doc:
 	$(MAKE) -C doc all
 
+install-doc:
+	$(MAKE) -C doc install
+
 all: all-lib bdr_init_copy bdr_dump
 
 world: all doc
+
+install-world: install install-doc
 
 clean: additional-clean
 
@@ -268,6 +277,7 @@ additional-clean:
 	rm -f bdr_dump$(X) $(DUMPOBJS)
 	rm -f bdr_resetxlog$(X) $(RESETXLOG_OBJS)
 	rm -f extsql/bdr--0.[89].0.[0-9].sql
+	rm -rf doc/html
 	$(MAKE) -C doc clean
 
 additional-maintainer-clean: clean
@@ -424,6 +434,5 @@ PHONY: submake-regress
 $(OBJS): .pg_version
 .pg_version:
 	@echo '$(MAJORVERSION)' | cmp -s - $@ || echo '$(MAJORVERSION)' > $@
-
 
 .PHONY: all check regresscheck isolationcheck doc
