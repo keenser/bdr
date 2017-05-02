@@ -155,3 +155,8 @@ Key points:
 * Avoid contractions and abbreviations
 * Avoid "unable", "unknown" (see docs)
 * Don't construct messages from chunks of text at runtime
+
+Related reading
+---
+
+https://martin.kleppmann.com/2015/05/11/please-stop-calling-databases-cp-or-ap.html
