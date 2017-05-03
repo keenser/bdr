@@ -93,12 +93,13 @@
      <xref linkend="function-bdr-acquire-global-lock">.
     </para>
 
-	<para>
-     This causes new transactions that attempt write operations <emphasis>on any
-     node</emphasis> to pause (block) until the DDL lock is released or canceled.
-     Existing write transactions will be given a grace period (controlled by
-     <xref linkend="guc-bdr-max-ddl-lock-delay">) to complete and aborted
-     (canceled) if they don't complete within the grace period, with the error:
+    <para>
+     This causes new transactions that attempt write operations <emphasis>on
+     any node except the node that acquired the lock</emphasis> to pause
+     (block) until the DDL lock is released or canceled.  Existing write
+     transactions will be given a grace period (controlled by <xref
+     linkend="guc-bdr-max-ddl-lock-delay">) to complete and aborted (canceled)
+     if they don't complete within the grace period, with the error:
      <programlisting>
 FATAL:  terminating connection due to conflict with recovery
 DETAIL:  User was holding a relation lock for too long.
@@ -106,12 +107,22 @@ DETAIL:  User was holding a relation lock for too long.
     </para>
 
     <para>
-     New writes continue to be blocked until the DDL operation has replicated to
-     all nodes, been applied, and all nodes have confirmed to the DDL originator
-     that the changes have been applied. Or until the transaction performing the
-     DDL is canceled (aborted) by the user or administrator. <emphasis>All
-     writes will be blocked, even if it does not affect the objects the
-     currently in-progress DDL is modifying.</emphasis>
+     BDR's DDL write lock does not affect writes on the node that acquired it,
+     only the other nodes in the BDR group.  The node running the DDL can
+     continue to execute DML normally so long as the regular PostgreSQL locks
+     taken by its DDL operations permit.  However, concurrent <emphasis>DDL</>
+     in another transaction on the same node is still not permitted and will
+     fail immediately with a DDL lock error.
+    </para>
+
+    <para>
+     Newly starting write operations on other nodes continue to be blocked
+     until the DDL operation has replicated to all nodes, been applied, and all
+     nodes have confirmed to the DDL originator that the changes have been
+     applied. Or until the transaction performing the DDL is canceled (aborted)
+     by the user or administrator. <emphasis>All writes will be blocked, even
+     if it does not affect the objects the currently in-progress DDL is
+     modifying.</emphasis>
     </para>
 
     <note>

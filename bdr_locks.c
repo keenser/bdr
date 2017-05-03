@@ -651,9 +651,9 @@ bdr_locks_set_nnodes(int nnodes)
 		 * lock.
 		 *
 		 * FIXME: there's a race here where we could release the lock before
-		 * applying the change in the perdb worker. We should really perform
-		 * this test and update when we see the new bdr.bdr_nodes row arrive
-		 * instead. See 2ndQuadrant/bdr-private#97.
+		 * applying the final changes for the node in the perdb worker. We
+		 * should really perform this test and update when we see the new
+		 * bdr.bdr_nodes row arrive instead. See 2ndQuadrant/bdr-private#97.
 		 */
 		ereport(WARNING,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -2106,6 +2106,42 @@ bdr_locks_process_remote_startup(const BDRNodeId * const node)
 }
 
 /*
+ * Return true if a peer node holds or is acquiring the global DDL lock
+ * according to our local state. Ignores locks of strength less than min_mode.
+ * In other words, does any peer own our local ddl lock in any state,
+ * in at least the specified mode?
+ */
+static bool
+bdr_locks_peer_has_lock(BDRLockType min_mode)
+{
+	bool lock_held_by_peer;
+
+	Assert(LWLockHeldByMe(bdr_locks_ctl->lock));
+
+	lock_held_by_peer = !this_xact_acquired_lock &&
+						bdr_my_locks_database->lockcount > 0 &&
+						bdr_my_locks_database->lock_type >= min_mode &&
+						bdr_my_locks_database->lock_holder != InvalidRepOriginId;
+
+	if (lock_held_by_peer)
+	{
+		Assert(bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_BEGIN_CATCHUP ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_CANCEL_XACTS ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_CATCHUP ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_CONFIRMED);
+	}
+	else
+	{
+		/* If no peer holds the lock, it must be us, or unlocked */
+		Assert(bdr_my_locks_database->lock_state == BDR_LOCKSTATE_NOLOCK ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_ACQUIRE_TALLY_CONFIRMATIONS ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_ACQUIRE_ACQUIRED);
+	}
+
+	return lock_held_by_peer;
+}
+
+/*
  * Function for checking if there is no conflicting BDR lock.
  *
  * Should be caled from ExecutorStart_hook.
@@ -2113,6 +2149,7 @@ bdr_locks_process_remote_startup(const BDRNodeId * const node)
 void
 bdr_locks_check_dml(void)
 {
+	bool lock_held_by_peer;
 
 	if (bdr_skip_ddl_locking)
 		return;
@@ -2131,13 +2168,32 @@ bdr_locks_check_dml(void)
 		pg_usleep(10000L);
 	}
 
-	/* Is this database locked against user initiated dml? */
-	pg_memory_barrier();
-	if (bdr_my_locks_database->lockcount > 0 && !this_xact_acquired_lock &&
-		bdr_my_locks_database->lock_type >= BDR_LOCK_WRITE)
+	/*
+	 * Is this database locked against user initiated dml by another node?
+	 *
+	 * If the locker is our own node we can safely continue. Postgres's normal
+	 * heavyweight locks will ensure consistency, and we'll replay changes in
+	 * commit-order to peers so there's no ordering problem. It doesn't matter
+	 * if we hold the lock or are still acquiring it; if we're acquiring and we
+	 * fail to get the lock, another node that acquires our local lock will
+	 * deal with any running xacts then.
+	 */
+	LWLockAcquire(bdr_locks_ctl->lock, LW_SHARED);
+	lock_held_by_peer = bdr_locks_peer_has_lock(BDR_LOCK_WRITE);
+	LWLockRelease(bdr_locks_ctl->lock);
+
+	/*
+	 * We can race against concurrent lock release here, but at worst we'll
+	 * just wait a bit longer than needed.
+	 */
+	if (lock_held_by_peer)
 	{
 		TimestampTz		canceltime;
 
+		/*
+		 * If we add a waiter after the lock is released we may get woken
+		 * unnecessarily, but it won't do any harm.
+		 */
 		bdr_locks_addwaiter(MyProc);
 
 		if (bdr_ddl_lock_timeout > 0 || LockTimeout > 0)
@@ -2161,9 +2217,11 @@ bdr_locks_check_dml(void)
 
 			CHECK_FOR_INTERRUPTS();
 
-			pg_memory_barrier();
-			if (bdr_my_locks_database->lockcount == 0 ||
-				bdr_my_locks_database->lock_type < BDR_LOCK_WRITE)
+			LWLockAcquire(bdr_locks_ctl->lock, LW_SHARED);
+			lock_held_by_peer = bdr_locks_peer_has_lock(BDR_LOCK_WRITE);
+			LWLockRelease(bdr_locks_ctl->lock);
+
+			if (!lock_held_by_peer)
 				break;
 
 			rc = WaitLatch(&MyProc->procLatch,
