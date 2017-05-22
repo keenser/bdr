@@ -38,13 +38,9 @@ $ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ ALTER TABLE pub
 $error_msg = qq(ALTER TABLE ... ADD COLUMN ... DEFAULT may only affect UNLOGGED or TEMPORARY tables when BDR is active; $table_name is a regular table);
 ddl_fail($node_b,$ddl_statement,$error_msg,"ALTER TABLE..ADD COLUMN..DEFAULT.. NOT NULL");
 
-TODO: {
-    # bug https://github.com/2ndQuadrant/bdr-private/issues/34
-    local $TODO = 'should be disallowed';
-    $ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ ALTER TABLE public.$table_name ADD CONSTRAINT test EXCLUDE USING gist(id with =);\$DDL\$);};
-    $error_msg = "EXCLUDE constraints are unsafe with BDR active";
-    ddl_fail($node_b,$ddl_statement,$error_msg,"ALTER TABLE..ADD CONSTRAINT..EXCLUDE");
-};
+$ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ ALTER TABLE public.$table_name ADD CONSTRAINT test EXCLUDE USING gist(id with =);\$DDL\$);};
+$error_msg = "EXCLUDE constraints are unsafe with BDR active";
+ddl_fail($node_b,$ddl_statement,$error_msg,"ALTER TABLE..ADD CONSTRAINT..EXCLUDE");
 
 $ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ CREATE TABLE public.test(id integer, EXCLUDE USING gist(id with =));\$DDL\$);};
 $error_msg = "EXCLUDE constraints are unsafe with BDR active";
