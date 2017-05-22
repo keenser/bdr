@@ -128,8 +128,8 @@
    <orderedlist>
     <listitem><para>A normal user backend attempts something that requires the DDL lock</para></listitem>
     <listitem><para>The BDR command filter notices that the DDL lock is needed, pauses the user's command, and requests that the local BDR node acquire the global DDL lock</para></listitem>
-    <listitem><para>The local BDR node acquires its own local DDL lock. It will now reject any incoming lock requests from other nodes, cancel write transactions if needed, and pause new write transactions if needed.</para></listitem>
-    <listitem><para>The local DDL node writes a message in its replicaiton stream to ask every other node to take their local DDL locks and reply to confirm they've done so</para></listitem>
+    <listitem><para>The local BDR node acquires its own local DDL lock. It will now reject any incoming lock requests from other nodes and will also reject attempts by other local transactions to perform DDL. DML is still permitted.</para></listitem>
+    <listitem><para>The local DDL node writes a message in its replication stream to ask every other node to take their local DDL locks and reply to confirm they've done so</para></listitem>
     <listitem><para>Every node that gets the request acquires the local DDL lock to prevent concurrent DDL and possibly writes, then replies to the requestor to confirm that its lock DDL lock is taken.</para></listitem>
     <listitem><para>When all peers have confirmed lock acquisition, the requesting node knows it now holds the global DDL lock. If it's acquiring a weak DDL lock it's done now. If it's acquiring a write lock it must wait until all peers confirm replay.</para></listitem>
     <listitem><para>If the DDL lock request was a write-lock request, each node receiving a lock request checks with every other node to see that they've all replayed all outstanding changes from each other and waits for them all to reply with confirmation, then sends its own catchup confirmation.</para></listitem>
@@ -152,9 +152,9 @@
    </para>
 
    <para>
-    This means that schema changes and anything else that takes the DDL
-    lock should only be performed when all nodes are reachable and there
-    isn't a big replication delay between any pair of nodes.
+    Schema changes and anything else that takes the DDL lock should only be
+    performed when all nodes are reachable and there isn't a big replication
+    delay between any pair of nodes.
    </para>
 
    <para>

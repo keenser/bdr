@@ -11,7 +11,7 @@ use Cwd;
 use Config;
 use PostgresNode;
 use TestLib;
-use Test::More tests => 18;
+use Test::More tests => 23;
 use utils::nodemanagement;
 
 # Create an upstream node and bring up bdr
@@ -24,18 +24,31 @@ my $node_2 = $nodes->[2];
 # we keep holding it until we commit/abort.
 my ($psql_stdin, $psql_stdout, $psql_stderr) = ('','', '');
 note "Acquiring global ddl lock on node_1";
-my $psql = IPC::Run::start(
-    ['psql', '-qAX', '-d', $node_1->connstr($bdr_test_dbname), '-f', '-'],
-    '<', \$psql_stdin, '>', \$psql_stdout, '2>', \$psql_stderr);
-
-$psql_stdin .= "BEGIN;\n";
-$psql_stdin .= "SELECT 'acquired' FROM bdr.acquire_global_lock('ddl_lock');\n";
-$psql->pump until $psql_stdout =~ 'acquired';
+my $handle = start_acquire_ddl_lock($node_1, 'ddl_lock');
+note "waiting for lock acqusition";
+wait_acquire_ddl_lock($handle);
+note "acquired";
 
 is( $node_0->safe_psql( $bdr_test_dbname, "SELECT state FROM bdr.bdr_global_locks"), 'acquired', "ddl lock acquired");
 
-# Part node B. The part should fail if B currently holds the global DDL lock.
-# (or we should release it?).
+print("Global DDL lock state on node_0 is: " . $node_0->safe_psql($bdr_test_dbname, 'SELECT * FROM bdr.bdr_locks') . "\n");
+print("Global DDL lock state on node_1 is: " . $node_1->safe_psql($bdr_test_dbname, 'SELECT * FROM bdr.bdr_locks') . "\n");
+print("Global DDL lock state on node_2 is: " . $node_2->safe_psql($bdr_test_dbname, 'SELECT * FROM bdr.bdr_locks') . "\n");
+is(
+    $node_0->safe_psql($bdr_test_dbname, 'SELECT lock_state, lock_mode, owner_node_name, owner_is_my_node, owner_is_my_backend FROM bdr.bdr_locks'),
+    'peer_confirmed|ddl_lock|node_1|f|f',
+    'node 0 confirmed lock as peer');
+is(
+    $node_1->safe_psql($bdr_test_dbname, 'SELECT lock_state, lock_mode, owner_node_name, owner_is_my_node, owner_is_my_backend FROM bdr.bdr_locks'),
+    'acquire_acquired|ddl_lock|node_1|t|f',
+    'node 1 confirmed lock as acquirer');
+is(
+    $node_2->safe_psql($bdr_test_dbname, 'SELECT lock_state, lock_mode, owner_node_name, owner_is_my_node, owner_is_my_backend FROM bdr.bdr_locks'),
+    'peer_confirmed|ddl_lock|node_1|f|f',
+    'node 2 confirmed lock as peer');
+
+# Part node node_1. The part should fail if node_1 currently holds the global
+# DDL lock.  (or we should release it?).
 TODO: {
     local $TODO = 'ddl lock check on part not implemented yet';
     is($node_0->psql( $bdr_test_dbname, "SELECT bdr.bdr_part_by_node_names(ARRAY['node_1'])" ),
@@ -48,11 +61,18 @@ TODO: {
 # DDL lock, parting the node with bdr.bdr_part_by_node_names() will release the
 # lock on other nodes.
 #
-# Bug #15
+# Bug 2ndQuadrant/bdr-private#72
 TODO: {
     local $TODO = 'ddl lock release on part not implemented yet';
-    is( $node_0->safe_psql( $bdr_test_dbname, "SELECT state FROM bdr.bdr_global_locks"), '', "ddl lock released after part");
+    is( $node_0->safe_psql( $bdr_test_dbname, "SELECT lock_state FROM bdr.bdr_locks"), 'nolock', "ddl lock released after part");
 };
+
+# Because we have to terminate the apply worker it can take a little while for
+# the lock to be released.
+$node_0->poll_query_until($bdr_test_dbname, "SELECT lock_state = 'nolock' FROM bdr.bdr_locks");
+
+is( $node_0->safe_psql( $bdr_test_dbname, "SELECT lock_state FROM bdr.bdr_locks"), 'nolock', "ddl lock released after part");
+is( $node_0->safe_psql( $bdr_test_dbname, "SELECT state FROM bdr.bdr_global_locks"), '', "bdr.bdr_global_locks row removed");
 
 # TODO:
 #

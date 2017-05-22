@@ -702,7 +702,22 @@ RETURNS record VOLATILE
 LANGUAGE c AS 'MODULE_PATHNAME','bdr_ddl_lock_info';
 
 COMMENT ON FUNCTION bdr.global_lock_info() IS
-'get diagnostic information on BDR global locking state';
+'backing function for bdr.bdr_locks view';
+
+CREATE VIEW bdr.bdr_locks AS
+SELECT
+ owner_replorigin = 0 AS owner_is_my_node,
+ owner_sysid, owner_timeline, owner_dboid,
+ (SELECT node_name FROM bdr.bdr_nodes WHERE (node_sysid,node_timeline,node_dboid) = (owner_sysid, owner_timeline, owner_dboid)) AS owner_node_name,
+ lock_mode, lock_state, owner_local_pid,
+ coalesce(owner_local_pid = pg_backend_pid(),'f') AS owner_is_my_backend,
+ owner_replorigin,
+ lockcount, npeers, npeers_confirmed, npeers_declined, npeers_replayed,
+ replay_upto
+FROM bdr.global_lock_info();
+
+COMMENT ON VIEW bdr.bdr_locks IS
+'diagnostic information on BDR global locking state, see manual';
 
 RESET bdr.permit_unsafe_ddl_commands;
 RESET bdr.skip_ddl_replication;

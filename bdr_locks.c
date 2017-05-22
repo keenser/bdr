@@ -126,11 +126,12 @@
  *
  *    There's some additional complications to handle crash safety:
  *
- *    Everytime a node crashes it sends out a 'startup' message causing all
- *    other nodes to release locks held by it before the crash.
- *    Then the bdr_global_locks table is read. All existing locks are
- *    acquired. If a lock still is in 'catchup' phase the lock acquiration
- *    process is re-started at step 6)
+ *    Everytime a node starts up (after crash or clean shutdown) it sends out a
+ *    'startup' message causing all other nodes to release locks held by it
+ *    before shutdown/crash. Then the bdr_global_locks table is read. All
+ *    existing local DDL locks held on behalf of other peers are acquired. If a
+ *    lock still is in 'catchup' phase the local lock acquiration process is
+ *    re-started at step 6)
  *
  *    Because only one decline is sufficient to stop a DDL lock acquisition,
  *    it's likely that two concurrent attempts to acquire the DDL lock from
@@ -302,6 +303,7 @@ static void bdr_locks_on_unlock(void);
 static int ddl_lock_log_level(int);
 static void register_holder_xact_callback(void);
 static void register_state_xact_callback(void);
+static void bdr_locks_release_local_ddl_lock(const BDRNodeId * const lock);
 
 static BdrLocksCtl *bdr_locks_ctl;
 
@@ -619,6 +621,10 @@ bdr_locks_startup(void)
 	bdr_my_locks_database->locked_and_loaded = true;
 }
 
+/*
+ * Called from the perdb worker to update our idea of the number of nodes
+ * in the group, when we process an update from shmem.
+ */
 void
 bdr_locks_set_nnodes(int nnodes)
 {
@@ -643,6 +649,11 @@ bdr_locks_set_nnodes(int nnodes)
 		 * normal. Node part doesn't take the DDL lock, but it's careful
 		 * to reject any in-progress DDL lock attempt or release any held
 		 * lock.
+		 *
+		 * FIXME: there's a race here where we could release the lock before
+		 * applying the final changes for the node in the perdb worker. We
+		 * should really perform this test and update when we see the new
+		 * bdr.bdr_nodes row arrive instead. See 2ndQuadrant/bdr-private#97.
 		 */
 		ereport(WARNING,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -810,14 +821,14 @@ register_holder_xact_callback(void)
 
 /*
  * Callback to update shmem state after we change global ddl lock state in
- * bdr_global_locks. Only called from apply worker.
+ * bdr_global_locks. Only called from apply worker and perdb worker.
  */
 static void
 bdr_lock_state_xact_callback(XactEvent event, void *arg)
 {
 	Assert(arg == NULL);
 	Assert(IsBackgroundWorker);
-	Assert(IsBdrApplyWorker());
+	Assert(IsBdrApplyWorker()||IsBdrPerdbWorker());
 
 	if (event == XACT_EVENT_COMMIT && bdr_lock_state_xact_callback_info.pending)
 	{
@@ -1571,9 +1582,85 @@ decline:
  * Another node has released the global DDL lock, update our local state.
  *
  * Runs in the apply worker.
+ *
+ * The only time that !bdr_nodeid_eq(origin,lock) is if we're in
+ * catchup mode and relaying locking messages from peers.
  */
 void
 bdr_process_release_ddl_lock(const BDRNodeId * const origin, const BDRNodeId * const lock)
+{
+
+	if (!check_is_my_origin_node(origin))
+		return;
+
+	elog(ddl_lock_log_level(DDL_LOCK_TRACE_PEERS),
+		 LOCKTRACE "global lock released by "BDR_NODEID_FORMAT_WITHNAME,
+		 BDR_NODEID_FORMAT_WITHNAME_ARGS(*lock));
+
+	bdr_locks_release_local_ddl_lock(lock);
+}
+
+/*
+ * Peer node has been parted from the system. We need to clear up any
+ * local DDL lock it may hold so that we can continue to process
+ * writes.
+ *
+ * This must ONLY be called after the apply worker for the peer
+ * successfully is terminated.
+ */
+void
+bdr_locks_node_parted(BDRNodeId *node)
+{
+	bool peer_holds_lock = false;
+	BDRNodeId owner;
+
+	bdr_locks_find_my_database(false);
+
+	elog(INFO, "XXX testing if node holds ddl lock");
+
+	/*
+ 	 * Rather than looking up the replication origin of the
+	 * node being parted, which might no longer exist, check
+	 * if the lock is held and if so, if the node id matches.
+	 *
+	 * We could just call bdr_locks_release_local_ddl_lock but that'll
+	 * do table scans etc we can avoid by taking a quick look at shmem
+	 * first.
+	 */
+	LWLockAcquire(bdr_locks_ctl->lock, LW_SHARED);
+	if (bdr_my_locks_database->lock_type > BDR_LOCK_NOLOCK)
+	{
+		StartTransactionCommand();
+		bdr_fetch_sysid_via_node_id(bdr_my_locks_database->lock_holder, &owner);
+
+		elog(ddl_lock_log_level(DDL_LOCK_TRACE_PEERS),
+			 LOCKTRACE "global lock held by "BDR_NODEID_FORMAT_WITHNAME" released after node part",
+			 BDR_NODEID_FORMAT_WITHNAME_ARGS(*node));
+
+		peer_holds_lock = bdr_nodeid_eq(node, &owner);
+		CommitTransactionCommand();
+
+		elog(INFO, "XXX target peer holds lock: %d", peer_holds_lock);
+	}
+	LWLockRelease(bdr_locks_ctl->lock);
+
+	if (peer_holds_lock)
+	{
+		elog(INFO, "XXX attempting to release lock");
+		bdr_locks_release_local_ddl_lock(node);
+		elog(INFO, "XXX attempted to release lock");
+	}
+}
+
+/*
+ * Release any global DDL lock we may hold for node 'lock'.
+ *
+ * This is invoked from the apply worker when we get release messages,
+ * and by node part handling when parting a node that may still hold
+ * the DDL lock.
+ */
+static void
+bdr_locks_release_local_ddl_lock(const BDRNodeId * const lock)
 {
 	Relation		rel;
 	Snapshot		snap;
@@ -1583,18 +1670,11 @@ bdr_process_release_ddl_lock(const BDRNodeId * const origin, const BDRNodeId * c
 	Latch		   *latch;
 	StringInfoData	s;
 
-	if (!check_is_my_origin_node(origin))
-		return;
-
 	/* FIXME: check db */
 
 	bdr_locks_find_my_database(false);
 
 	initStringInfo(&s);
-
-	elog(ddl_lock_log_level(DDL_LOCK_TRACE_PEERS),
-		 LOCKTRACE "global lock released by "BDR_NODEID_FORMAT_WITHNAME,
-		 BDR_NODEID_FORMAT_WITHNAME_ARGS(*lock));
 
 	/*
 	 * Remove row from bdr_locks *before* releasing the in memory lock. If we
@@ -1605,10 +1685,11 @@ bdr_process_release_ddl_lock(const BDRNodeId * const origin, const BDRNodeId * c
 	rel = heap_open(BdrLocksRelid, RowExclusiveLock);
 
 	/* Find any bdr_locks entry for the releasing peer */
-	scan = locks_begin_scan(rel, snap, origin);
+	scan = locks_begin_scan(rel, snap, lock);
 
 	while ((tuple = systable_getnext(scan)) != NULL)
 	{
+		elog(INFO, "XXX found global lock entry to delete in response to global lock release message");
 		elog(DEBUG2, "found global lock entry to delete in response to global lock release message");
 		simple_heap_delete(rel, &tuple->t_self);
 		bdr_locks_set_commit_pending_state(BDR_LOCKSTATE_NOLOCK);
@@ -1806,8 +1887,13 @@ bdr_process_request_replay_confirm(const BDRNodeId * const node, XLogRecPtr requ
 	initStringInfo(&s);
 	bdr_prepare_message(&s, BDR_MESSAGE_REPLAY_CONFIRM);
 	pq_sendint64(&s, request_lsn);
+	/*
+	 * This is crash safe even though we don't update the replication origin
+	 * and FlushDatabaseBuffers() before replying. The message written to WAL
+	 * by bdr_send_message will not get decoded and sent by walsenders until it
+	 * is flushed to disk.
+	 */
 	bdr_send_message(&s, false);
-
 }
 
 
@@ -1849,6 +1935,10 @@ bdr_send_confirm_lock(void)
 	/*
 	 * Update state of lock. Do so in the same xact that confirms the
 	 * lock. That way we're safe against crashes.
+	 *
+	 * This is safe even though we don't force a synchronous commit,
+	 * because the message written to WAL by bdr_send_message will
+	 * not get decoded and sent by walsenders until it is flushed.
 	 */
 	/* Scan for a matching lock whose state needs to be updated */
 	snap = RegisterSnapshot(GetLatestSnapshot());
@@ -2016,6 +2106,42 @@ bdr_locks_process_remote_startup(const BDRNodeId * const node)
 }
 
 /*
+ * Return true if a peer node holds or is acquiring the global DDL lock
+ * according to our local state. Ignores locks of strength less than min_mode.
+ * In other words, does any peer own our local ddl lock in any state,
+ * in at least the specified mode?
+ */
+static bool
+bdr_locks_peer_has_lock(BDRLockType min_mode)
+{
+	bool lock_held_by_peer;
+
+	Assert(LWLockHeldByMe(bdr_locks_ctl->lock));
+
+	lock_held_by_peer = !this_xact_acquired_lock &&
+						bdr_my_locks_database->lockcount > 0 &&
+						bdr_my_locks_database->lock_type >= min_mode &&
+						bdr_my_locks_database->lock_holder != InvalidRepOriginId;
+
+	if (lock_held_by_peer)
+	{
+		Assert(bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_BEGIN_CATCHUP ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_CANCEL_XACTS ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_CATCHUP ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_CONFIRMED);
+	}
+	else
+	{
+		/* If no peer holds the lock, it must be us, or unlocked */
+		Assert(bdr_my_locks_database->lock_state == BDR_LOCKSTATE_NOLOCK ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_ACQUIRE_TALLY_CONFIRMATIONS ||
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_ACQUIRE_ACQUIRED);
+	}
+
+	return lock_held_by_peer;
+}
+
+/*
  * Function for checking if there is no conflicting BDR lock.
  *
  * Should be caled from ExecutorStart_hook.
@@ -2023,6 +2149,7 @@ bdr_locks_process_remote_startup(const BDRNodeId * const node)
 void
 bdr_locks_check_dml(void)
 {
+	bool lock_held_by_peer;
 
 	if (bdr_skip_ddl_locking)
 		return;
@@ -2041,13 +2168,32 @@ bdr_locks_check_dml(void)
 		pg_usleep(10000L);
 	}
 
-	/* Is this database locked against user initiated dml? */
-	pg_memory_barrier();
-	if (bdr_my_locks_database->lockcount > 0 && !this_xact_acquired_lock &&
-		bdr_my_locks_database->lock_type >= BDR_LOCK_WRITE)
+	/*
+	 * Is this database locked against user initiated dml by another node?
+	 *
+	 * If the locker is our own node we can safely continue. Postgres's normal
+	 * heavyweight locks will ensure consistency, and we'll replay changes in
+	 * commit-order to peers so there's no ordering problem. It doesn't matter
+	 * if we hold the lock or are still acquiring it; if we're acquiring and we
+	 * fail to get the lock, another node that acquires our local lock will
+	 * deal with any running xacts then.
+	 */
+	LWLockAcquire(bdr_locks_ctl->lock, LW_SHARED);
+	lock_held_by_peer = bdr_locks_peer_has_lock(BDR_LOCK_WRITE);
+	LWLockRelease(bdr_locks_ctl->lock);
+
+	/*
+	 * We can race against concurrent lock release here, but at worst we'll
+	 * just wait a bit longer than needed.
+	 */
+	if (lock_held_by_peer)
 	{
 		TimestampTz		canceltime;
 
+		/*
+		 * If we add a waiter after the lock is released we may get woken
+		 * unnecessarily, but it won't do any harm.
+		 */
 		bdr_locks_addwaiter(MyProc);
 
 		if (bdr_ddl_lock_timeout > 0 || LockTimeout > 0)
@@ -2071,9 +2217,11 @@ bdr_locks_check_dml(void)
 
 			CHECK_FOR_INTERRUPTS();
 
-			pg_memory_barrier();
-			if (bdr_my_locks_database->lockcount == 0 ||
-				bdr_my_locks_database->lock_type < BDR_LOCK_WRITE)
+			LWLockAcquire(bdr_locks_ctl->lock, LW_SHARED);
+			lock_held_by_peer = bdr_locks_peer_has_lock(BDR_LOCK_WRITE);
+			LWLockRelease(bdr_locks_ctl->lock);
+
+			if (!lock_held_by_peer)
 				break;
 
 			rc = WaitLatch(&MyProc->procLatch,

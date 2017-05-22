@@ -58,4 +58,14 @@ maintainer-clean:
 	rm -rf html
 	rm -rf Makefile
 
+zip: html
+	cp -r html bdr-docs-$(BDR_VERSION)
+	zip -r bdr-docs-$(BDR_VERSION).zip bdr-docs-$(BDR_VERSION)
+	rm -rf bdr-docs-$(BDR_VERSION)
+
+install: html
+	@$(MKDIR_P) $(DESTDIR)$(docdir)/$(docmoduledir)/bdr
+	@$(INSTALL_DATA) $(wildcard html/*.html) $(wildcard html/*.css) $(DESTDIR)$(docdir)/$(docmoduledir)/bdr
+	@echo Installed docs to $(DESTDIR)$(docdir)/$(docmoduledir)/bdr
+
 .PHONY: html all

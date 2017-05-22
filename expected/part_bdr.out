@@ -177,17 +177,19 @@ SELECT bdr.bdr_is_active_in_db();
 (1 row)
 
 -- Strip BDR from this node entirely and convert global sequences to local.
+BEGIN;
+SET LOCAL client_min_messages = 'notice';
 SELECT bdr.remove_bdr_from_local_node(true, true);
 WARNING:  forcing deletion of possibly active BDR node
 NOTICE:  node forced to parted state, now removing
 NOTICE:  removing BDR from node
-INFO:  BDR 1.0 global sequences not supported, nothing to convert
 NOTICE:  BDR removed from this node. You can now DROP EXTENSION bdr and, if this is the last BDR node on this PostgreSQL instance, remove bdr from shared_preload_libraries.
  remove_bdr_from_local_node 
 ----------------------------
  
 (1 row)
 
+COMMIT;
 SELECT bdr.bdr_is_active_in_db();
  bdr_is_active_in_db 
 ---------------------

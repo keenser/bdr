@@ -272,6 +272,26 @@ filter_AlterTableStmt(Node *parsetree,
 					}
 				case AT_AddIndex: /* produced by for example ALTER TABLE … ADD
 								   * CONSTRAINT … PRIMARY KEY */
+					{
+						/*
+						 * Any ADD CONSTRAINT that creates an index is tranformed into an
+						 * AT_AddIndex by transformAlterTableStmt in parse_utilcmd.c, before
+						 * we see it. We can't look at the AT_AddConstraint because there
+						 * isn't one anymore.
+						 */
+						IndexStmt *index = (IndexStmt *) stmt->def;
+						*lock_type = BDR_LOCK_DDL;
+
+						if (index->excludeOpNames != NIL)
+						{
+							error_on_persistent_rv(astmt->relation,
+								"ALTER TABLE ... ADD CONSTRAINT ... EXCLUDE",
+												   lockmode,
+												   astmt->missing_ok);
+						}
+
+					}
+
 				case AT_DropColumn:
 				case AT_DropNotNull:
 				case AT_SetNotNull:
@@ -302,10 +322,15 @@ filter_AlterTableStmt(Node *parsetree,
 					{
 						Constraint *con = (Constraint *) stmt->def;
 
+						/*
+						 * This won't be hit on current Pg; see the handling of
+						 * AT_AddIndex above. But we check for it anyway to defend
+						 * against future change.
+						 */
 						if (con->contype == CONSTR_EXCLUSION)
 							error_on_persistent_rv(astmt->relation,
 								"ALTER TABLE ... ADD CONSTRAINT ... EXCLUDE",
-									               lockmode,
+												   lockmode,
 												   astmt->missing_ok);
 					}
 					break;
