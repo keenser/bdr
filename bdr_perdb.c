@@ -424,6 +424,11 @@ bdr_maintain_db_workers(void)
 		{
 			/* check again next time round, soon please */
 			SetLatch(&MyProc->procLatch);
+			/*
+			 * and treat as still alive for DDL locking purposes, since if it
+			 * holds the ddl lock we might still have pending xacts from it
+			 */
+			nnodes ++;
 		}
 		else
 		{
