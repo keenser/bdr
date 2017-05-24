@@ -18,7 +18,10 @@
 #include "postgres.h"
 
 #include "commands/sequence.h"
+
 #include "fmgr.h"
+
+#include "utils/lsyscache.h"
 #include "utils/timestamp.h"
 #include "utils/datetime.h"
 
@@ -97,7 +100,15 @@ global_seq_nextval_oid(PG_FUNCTION_ARGS)
 	if (nodeid < 0 || nodeid > MAX_NODE_ID)
 		elog(ERROR, "nodeid must be in range 0 .. %d", MAX_NODE_ID);
 
+	if (sequence < 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("sequence produced negative value"),
+				 errdetail("Sequence \"%s\" produced a negative result. Sequences used as inputs to BDR global sequence functions must produce positive outputs.",
+						   get_rel_name(seqoid))));
+
 	Assert(sequence >= 0 && sequence < MAX_SEQ_ID);
+	/* static assertions against programmer error: */
 	Assert((MAX_SEQ_ID + 1) % 2 == 0);
 	Assert(TIMESTAMP_BITS + NODEID_BITS + SEQUENCE_BITS == 64);
 
