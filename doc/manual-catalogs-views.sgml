@@ -45,8 +45,77 @@
    <literal>'k'</> to re-use their node names.
   </para>
 
-  <!-- TODO: column definitions, copy from wiki -->
-
+  <table>
+   <title><structname>bdr.bdr_nodes</> Columns</title>
+  
+   <tgroup cols="4">
+    <thead>
+     <row>
+      <entry>Name</entry>
+      <entry>Type</entry>
+      <entry>References</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><structfield>node_sysid</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>system_identifier from the control file of the node</entry>
+     </row>
+     <row>
+      <entry><structfield>node_timeline</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry>timeline ID of this node</entry>
+     </row>
+     <row>
+      <entry><structfield>node_dboid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry>local database oid on the cluster (node_sysid, node_timeline)</entry>
+     </row>
+     <row>
+      <entry><structfield>node_status</structfield></entry>
+      <entry><type>char</type></entry>
+      <entry></entry>
+      <entry>Readiness of the node: [b]eginning setup, [i]nitializing, [c]atchup, creating [o]utbound slots, [r]eady, [k]illed. Doesn't indicate connected/disconnected.
+</entry>
+     </row>
+     <row>
+      <entry><structfield>node_name</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>Name of the node</entry>
+     </row>
+     <row>
+      <entry><structfield>node_local_dsn</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structname>Node management function:</structname><structfield>node_local_dsn</structfield></entry>
+      <entry>A local loopback or unix socket connection string that the node can use to connect to its self; this is only used during initial setup to make the database restore faster.</entry>
+     </row>
+     <row>
+      <entry><structfield>node_init_from_dsn</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structname>Node management function:</structname><structfield>node_external_dsn</structfield></entry>
+      <entry>Connection string of the node chosen as join target. Not used after we've joined the node.</entry>
+     </row>
+     <row>
+      <entry><structfield>node_read_only</structfield></entry>
+      <entry><type>boolean</type></entry>
+      <entry></entry>
+      <entry>False unless read-only mode for a node is turned ON.</entry>
+     </row>
+     <row>
+      <entry><structfield>node_seq_id</structfield></entry>
+      <entry><type>smallint</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
  </sect1>
 
  <sect1 id="catalog-bdr-connections" xreflabel="bdr.bdr_connections">
@@ -64,7 +133,82 @@
    string.
   </para>
 
-  <!-- TODO: column definitions, copy from wiki -->
+  <table>
+   <title><structname>bdr.bdr_connections</> Columns</title>
+  
+   <tgroup cols="4">
+    <thead>
+     <row>
+      <entry>Name</entry>
+      <entry>Type</entry>
+      <entry>References</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><structfield>conn_sysid</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_sysid</structfield></entry>
+      <entry>System identifer for the node this entry's dsn refers to.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_timeline</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_timeline</structfield></entry>
+      <entry>System timeline ID for the node this entry's dsn refers to.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_dboid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_dboid</structfield></entry>
+      <entry>System database OID for the node this entry's dsn refers to</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_origin_sysid</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>If set, ignore this entry unless the local sysid is this.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_origin_timeline</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry>If set, ignore this entry unless the local timeline is this.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_origin_dboid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry>If set, ignore this entry unless the local dboid is this.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_is_unidirectional</structfield></entry>
+      <entry><type>boolean</type></entry>
+      <entry></entry>
+      <entry>Indicates that this connection is unidirectional; there won't be a corresponding inbound connection from the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_dsn</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_local_dsn</structfield></entry>
+      <entry>A libpq-style connection string specifying how to make a connection to this node from other nodes.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_apply_delay</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry>If set, milliseconds to wait before applying each transaction from the remote node. Mainly for  debugging. If null, the global default applies.</entry>
+     </row>
+     <row>
+      <entry><structfield>conn_replication_sets</structfield></entry>
+      <entry><type>text[]</type></entry>
+      <entry><structname>Node management function:</structname><structfield>replication_sets</structfield></entry>
+      <entry>Replication sets this connection should participate in, if non-default.</entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
 
  </sect1>
 
@@ -115,7 +259,82 @@
    For more on the use of this view, see <xref linkend="monitoring">.
   </para>
 
-  <!-- TODO: column definitions, copy from wiki -->
+  <table>
+   <title><structname>bdr.bdr_nodes_slots</> Columns</title>
+  
+   <tgroup cols="4">
+    <thead>
+     <row>
+      <entry>Name</entry>
+      <entry>Type</entry>
+      <entry>References</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><structfield>node_name</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structname>bdr.bdr_nodes</structname><structfield>.node_name</structfield></entry>
+      <entry>Name of peer node having a slot on current node.</entry>
+     </row>
+     <row>
+      <entry><structfield>slot_name</structfield></entry>
+      <entry><type>name</type></entry>
+      <entry><structname>bdr.pg_replication_slots</structname><structfield>.slot_name</structfield></entry>
+      <entry>A unique, cluster-wide identifier for the replication slot.</entry>
+     </row>
+     <row>
+      <entry><structfield>slot_restart_lsn</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry><structname>bdr.pg_replication_slots</structname><structfield>.restrt_lsn</structfield></entry>
+      <entry>The address (LSN) of oldest WAL which still might be required by the consumer of this slot and thus won't be automatically removed during checkpoints.</entry>
+     </row>
+     <row>
+      <entry><structfield>slot_confirmed_lsn</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry><structname>bdr.pg_replication_slots</structname><structfield>.slot_confirmed_flush_lsn</structfield></entry>
+      <entry>The address (LSN) up to which the logical slot's consumer has confirmed receiving data. Data older than this is not available anymore. NULL for physical slots.</entry>
+     </row>
+     <row>
+      <entry><structfield>walsender_active</structfield></entry>
+      <entry><type>boolean</type></entry>
+      <entry><structname>bdr.pg_replication_slots</structname><structfield>.active</structfield></entry>
+      <entry>True if this slot is currently actively being used.</entry>
+     </row>
+     <row>
+      <entry><structfield>walsender_pid</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry><structname>bdr.pg_replication_slots</structname><structfield>.active_pid</structfield></entry>
+      <entry>The process ID of the session using this slot if the slot is currently actively being used. NULL if inactive.</entry>
+     </row>
+     <row>
+      <entry><structfield>sent_location</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry><structname>bdr.pg_stat_replication</structname><structfield>.sent_location</structfield></entry>
+      <entry>Last transaction log position sent on this connection.</entry>
+     </row>
+     <row>
+      <entry><structfield>write_location</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry><structname>bdr.pg_stat_replication</structname><structfield>.write_location</structfield></entry>
+      <entry>Last transaction log position written to disk by this standby server.</entry>
+     </row>
+     <row>
+      <entry><structfield>flush_location</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry><structname>bdr.pg_stat_replication</structname><structfield>.flush_location</structfield></entry>
+      <entry>Last transaction log position flushed to disk by this standby server.</entry>
+     </row>
+     <row>
+      <entry><structfield>replay_location</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry><structname>bdr.pg_stat_replication</structname><structfield>.replay_location</structfield></entry>
+      <entry>Last transaction log position replayed into the database on this standby server.</entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
 
  </sect1>
 
@@ -141,7 +360,94 @@
    </programlisting>
   </para>
 
-  <!-- TODO: Column definitions, copy from wiki -->
+  <table>
+   <title><structname>bdr.pg_stat_bdr</> Columns</title>
+  
+   <tgroup cols="4">
+    <thead>
+     <row>
+      <entry>Name</entry>
+      <entry>Type</entry>
+      <entry>References</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><structfield>rep_node_id</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>The replication identifier for the connection with peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>relocalid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>The replication identifier for the connection with peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>riremoteid</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>A unique, cluster-wide identifier for the replication slot.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_commit</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of commits on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_rollback</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of rollbacks on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_insert</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of inserts on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_insert_conflict</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of conflicts occured during inserts on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_update</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of updates on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_update_conflict</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of conflicts occured during updates on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_delete</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of deletes on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_delete_conflict</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry>Number of conflicts occured during deletes on the peer node.</entry>
+     </row>
+     <row>
+      <entry><structfield>nr_disconnect</structfield></entry>
+      <entry><type>bigint</type></entry>
+      <entry><structfield>bdr.pg_stat_get_bdr()</structfield></entry>
+      <entry></entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
 
  </sect1>
 
@@ -166,7 +472,208 @@
    It is safe to <literal>TRUNCATE</literal> this table to save disk space.
   </para>
 
-  <!-- TODO: colun definitions, example content -->
+  <table>
+   <title><structname>bdr.bdr_conflict_history</> Columns</title>
+  
+   <tgroup cols="4">
+    <thead>
+     <row>
+      <entry>Name</entry>
+      <entry>Type</entry>
+      <entry>References</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><structfield>local_conflict_lsn</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry></entry>
+      <entry>xlog position at the time the conflict occured on the applying node.</entry>
+     </row>
+     <row>
+      <entry><structfield>local_conflict_time</structfield></entry>
+      <entry><type>timestamp with timezone</type></entry>
+      <entry></entry>
+      <entry>The time the conflict was detected on the applying node.</entry>
+     </row>
+     <row>
+      <entry><structfield>object_schema</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>Schema of the object involved in the conflict.</entry>
+     </row>
+     <row>
+      <entry><structfield>object_name</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>Name of the object (table, etc) involved in the conflict.</entry>
+     </row>
+     <row>
+      <entry><structfield>remote_node_sysid</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>sysid of the remote node the conflicting transaction originated from.</entry>
+     </row>
+     <row>
+      <entry><structfield>remote_xid</structfield></entry>
+      <entry><type>xid</type></entry>
+      <entry></entry>
+      <entry>xid of the remote transaction involved in the conflict.</entry>
+     </row>
+     <row>
+      <entry><structfield>remote_commit_time</structfield></entry>
+      <entry><type>timestamp with timezone</type></entry>
+      <entry></entry>
+      <entry>The time the remote transaction involved in this conflict committed.</entry>
+     </row>
+     <row>
+      <entry><structfield>remote_commit_lsn</structfield></entry>
+      <entry><type>pg_lsn</type></entry>
+      <entry></entry>
+      <entry>LSN on remote node at which conflicting transaction committed.</entry>
+     </row>
+     <row>
+      <entry><structfield>conflict_type</structfield></entry>
+      <entry><type>bdr.bdr_conflict_type</type></entry>
+      <entry></entry>
+      <entry>Nature of the conflict - insert/insert, update/delete, etc.</entry>
+     </row>
+     <row>
+      <entry><structfield>conflict_resolution</structfield></entry>
+      <entry><type>bdr.bdr_conflict_resolution</type></entry>
+      <entry></entry>
+      <entry>How the conflict was resolved/handled; see the enum definition.</entry>
+     </row>
+     <row>
+      <entry><structfield>local_tuple</structfield></entry>
+      <entry><type>json</type></entry>
+      <entry></entry>
+      <entry>For DML conflicts, the conflicting tuple from the local DB (as json), if logged.</entry>
+     </row>
+     <row>
+      <entry><structfield>remote_tuple</structfield></entry>
+      <entry><type>json</type></entry>
+      <entry></entry>
+      <entry>For DML conflicts, the conflicting tuple from the remote DB (as json), if logged</entry>
+     </row>
+     <row>
+      <entry><structfield>local_tuple_xmin</structfield></entry>
+      <entry><type>xid</type></entry>
+      <entry></entry>
+      <entry>If local_tuple is set, the xmin of the conflicting local tuple.</entry>
+     </row>
+     <row>
+      <entry><structfield>local_tuple_origin_sysid</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>The node id for the true origin of the local tuple. Differs from local_node_sysid if the tuple was originally replicated from another node.</entry>
+     </row>
+     <row>
+      <entry><structfield>error_message</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry>On apply error, the error message from ereport/elog. Other error fields match.</entry>
+     </row>
+     <row>
+      <entry><structfield>error_sqlstate</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_querystring</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_cursorpos</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_detail</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_hint</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_context</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_columnname</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_typename</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_constraintname</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_filename</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_lineno</structfield></entry>
+      <entry><type>integer</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>error_funcname</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>remote_node_timeline</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>remote_node_dboid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>local_tuple_origin_timeline</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>local_tuple_origin_dboid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table> 
 
  </sect1>
 
@@ -191,7 +698,52 @@
    directly.
   </para>
 
-  <!-- TODO: column definitions, example content -->
+  <table>
+   <title><structname>bdr.bdr_conflict_handlers</> Columns</title>
+  
+   <tgroup cols="4">
+    <thead>
+     <row>
+      <entry>Name</entry>
+      <entry>Type</entry>
+      <entry>References</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry><structfield>ch_name</structfield></entry>
+      <entry><type>name</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>ch_type</structfield></entry>
+      <entry><type>bdr.bdr_conflict_type</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>ch_reloid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>ch_fun</structfield></entry>
+      <entry><type>text</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>ch_timeframe</structfield></entry>
+      <entry><type>interval</type></entry>
+      <entry></entry>
+      <entry></entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
  </sect1>
 
  <sect1 id="catalog-bdr-locks" xreflabel="bdr.bdr_locks">
