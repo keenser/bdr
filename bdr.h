@@ -450,6 +450,7 @@ extern Oid bdr_lookup_relid(const char *relname, Oid schema_oid);
 
 /* apply support */
 extern void bdr_fetch_sysid_via_node_id(RepOriginId node_id, BDRNodeId * out_nodeid);
+extern bool bdr_fetch_sysid_via_node_id_ifexists(RepOriginId node_id, BDRNodeId * out_nodeid, bool missing_ok);
 extern RepOriginId bdr_fetch_node_id_via_sysid(const BDRNodeId * const node);
 
 /* Index maintenance, heap access, etc */

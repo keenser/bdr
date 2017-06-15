@@ -31,10 +31,12 @@ static inline RepNodeId replorigin_create(char *name)
 	return CreateReplicationIdentifier(name);
 }
 
-static inline void replorigin_by_oid(RepNodeId riident, bool missing_ok,
+static inline bool replorigin_by_oid(RepNodeId riident, bool missing_ok,
 										   char **riname)
 {
+	*riname = NULL;
 	GetReplicationInfoByIdentifier(riident, missing_ok, riname);
+	return riname != NULL;
 }
 
 static inline void replorigin_drop(RepNodeId riident)

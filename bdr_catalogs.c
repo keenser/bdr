@@ -377,8 +377,8 @@ bdr_nodes_set_local_attrs(BdrNodeStatus status, BdrNodeStatus oldstatus, const i
  * timeline id, database oid). Ignore identifiers local to databases other than
  * the active DB.
  */
-void
-bdr_fetch_sysid_via_node_id(RepOriginId node_id, BDRNodeId *node)
+bool
+bdr_fetch_sysid_via_node_id_ifexists(RepOriginId node_id, BDRNodeId *node, bool missing_ok)
 {
 	if (node_id == InvalidRepOriginId || node_id == DoNotReplicateId)
 	{
@@ -391,7 +391,7 @@ bdr_fetch_sysid_via_node_id(RepOriginId node_id, BDRNodeId *node)
 
 		Oid local_dboid;
 
-		replorigin_by_oid(node_id, false, &riname);
+		replorigin_by_oid(node_id, missing_ok, &riname);
 
 		bdr_parse_replident_name(riname, node, &local_dboid);
 		pfree(riname);
@@ -404,6 +404,12 @@ bdr_fetch_sysid_via_node_id(RepOriginId node_id, BDRNodeId *node)
 					 		node_id, local_dboid, MyDatabaseId)));
 		}
 	}
+}
+
+void
+bdr_fetch_sysid_via_node_id(RepOriginId node_id, BDRNodeId *node)
+{
+	(void) bdr_fetch_sysid_via_node_id_ifexists(node_id, node, false);
 }
 
 /*

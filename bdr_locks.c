@@ -2340,12 +2340,19 @@ bdr_ddl_lock_info(PG_FUNCTION_ARGS)
 		 * doing so here saves the user from having to parse the reporigin name
 		 * and map it to bdr.bdr_nodes to get the node name.
 		 */
-		bdr_fetch_sysid_via_node_id(state.lock_holder, &locknodeid);
-		snprintf(sysid_str, sizeof(sysid_str), UINT64_FORMAT, locknodeid.sysid);
 		values[field++] = ObjectIdGetDatum(state.lock_holder);
-		values[field++] = CStringGetTextDatum(sysid_str);
-		values[field++] = ObjectIdGetDatum(locknodeid.timeline);
-		values[field++] = ObjectIdGetDatum(locknodeid.dboid);
+		if (bdr_fetch_sysid_via_node_id_ifexists(state.lock_holder, &locknodeid, true)) {
+			snprintf(sysid_str, sizeof(sysid_str), UINT64_FORMAT, locknodeid.sysid);
+			values[field++] = CStringGetTextDatum(sysid_str);
+			values[field++] = ObjectIdGetDatum(locknodeid.timeline);
+			values[field++] = ObjectIdGetDatum(locknodeid.dboid);
+		} else {
+			elog(WARNING, "lookup of replication origin %d failed",
+				state.lock_holder);
+			isnull[field++] = true;
+			isnull[field++] = true;
+			isnull[field++] = true;
+		}
 		values[field++] = CStringGetTextDatum(bdr_lock_type_to_name(state.lock_type));
 	}
 	else
