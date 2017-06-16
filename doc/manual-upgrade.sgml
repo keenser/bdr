@@ -50,8 +50,8 @@
 
    <para>
     Then, like any other nontrivial server migration by dump and reload, you should
-    <literal>pg_dumpall --globals-only</> then <literal>pg_dump -Fc</> each
-    database you wish to migrate. Restore them into PostgreSQL 9.6, 
+    <literal>pg_dumpall --globals-only</> then <literal>pg_dump -Fc -T 'bdr.*'</> each
+    database you wish to migrate.
    </para>
 
    <important>

@@ -38,7 +38,7 @@
     <listitem><para>New global sequences implementation that doesn't experience exhaustion under load or network partitions</></>
     <listitem><para>New DDL replication implementation for PostgreSQL 9.6 compatibility. This brings a different set of limitations and benefits.</></>
     <listitem><para>Retains compatibility with BDR-Postgres 9.4</></>
-    <listitem><para>Node join is now race-free.</></>
+    <listitem><para>Support for joining new nodes concurrently</></>
    </itemizedlist>
   </para>
 
@@ -52,8 +52,7 @@
       Transparent DDL replication is not (yet) supported by BDR 2.0 on
       PostgreSQL 9.6. All DDL must be wrapped in <link
       linkend="function-bdr-replicate-ddl-command"><literal>bdr.bdr_replicate_ddl_command(...)</></>
-      calls. Transparent DDL replication on 9.6 is planned for a future BDR
-      update.
+      calls.
      </>
     </>
     <listitem>
@@ -65,13 +64,6 @@
       Postgres-BDR 9.4 are also encouraged to switch to the new global
       sequences model to ease future upgrades and because the new model is more
       resilient against network partitions.
-     </>
-    </>
-    <listitem>
-     <para>
-      Mixed BDR 1.0 and BDR 2.0 groups are not supported for long term use due to
-      changes in DDL replication. A hybrid-mode group may be run temporarily for
-      upgrades. See <xref linkend="upgrade">.
      </>
     </>
    </itemizedlist>
