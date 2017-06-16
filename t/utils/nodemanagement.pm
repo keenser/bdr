@@ -342,7 +342,7 @@ sub initandstart_physicaljoin_node {
     # PostgresNode doesn't know we started the node since we didn't
     # use any of its methods, so we'd better tell it to check. Otherwise
     # it'll ignore the node for things like pg_ctl stop.
-    $join_node->_update_pid();
+    $join_node->_update_pid(1);
 
     check_join_status($join_node, $upstream_node);
 }

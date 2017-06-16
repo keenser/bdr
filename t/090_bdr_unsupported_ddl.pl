@@ -39,7 +39,7 @@ $error_msg = qq(ALTER TABLE ... ADD COLUMN ... DEFAULT may only affect UNLOGGED 
 ddl_fail($node_b,$ddl_statement,$error_msg,"ALTER TABLE..ADD COLUMN..DEFAULT.. NOT NULL");
 
 $ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ ALTER TABLE public.$table_name ADD CONSTRAINT test EXCLUDE USING gist(id with =);\$DDL\$);};
-$error_msg = "EXCLUDE constraints are unsafe with BDR active";
+$error_msg = "ALTER TABLE ... ADD CONSTRAINT ... EXCLUDE may only affect UNLOGGED or TEMPORARY tables when BDR is active";
 ddl_fail($node_b,$ddl_statement,$error_msg,"ALTER TABLE..ADD CONSTRAINT..EXCLUDE");
 
 $ddl_statement = qq{SELECT bdr.bdr_replicate_ddl_command(\$DDL\$ CREATE TABLE public.test(id integer, EXCLUDE USING gist(id with =));\$DDL\$);};

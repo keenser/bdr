@@ -186,7 +186,7 @@ sub concurrent_joins_physical {
     foreach my $join_node (@nodes) {
         my $node = @{$join_node}[0];
         $node->safe_psql( $bdr_test_dbname, 'SELECT bdr.bdr_node_join_wait_for_ready()' );
-        $node->_update_pid();
+        $node->_update_pid(1);
     }
 
     # and validate
@@ -384,7 +384,7 @@ sub concurrent_join_part_physical {
     # wait for BDR to come up
     foreach my $node (@{$join_nodes}) {
         $node->safe_psql( $bdr_test_dbname, 'SELECT bdr.bdr_node_join_wait_for_ready()' );
-        $node->_update_pid();
+        $node->_update_pid(1);
     }
 
     # and validate

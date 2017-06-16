@@ -27,7 +27,7 @@ exec_ddl( $node_a, qq{SELECT setval('public.test_seq', -8);} );
 # Try nextval on the sequence
 ($ret, $stdout, $stderr) = $node_a->psql($bdr_test_dbname,
 qq{ SELECT bdr.global_seq_nextval('test_seq'::regclass) FROM generate_series(1,3::bigint); });
-like($stderr, qr/sequence returned negative value/, "psql error message for nextval reaching minvalue");
+like($stderr, qr/produced a negative result/, "psql error message for nextval reaching minvalue");
 
 # alter global sequence for positive increment and set a max value.
 # psql should error out on reaching maxvalue
@@ -49,4 +49,4 @@ exec_ddl( $node_a, qq{ALTER SEQUENCE public.test_seq CYCLE;} );
 
 ($ret, $stdout, $stderr) = $node_a->psql($bdr_test_dbname,
 qq{ SELECT bdr.global_seq_nextval('test_seq'::regclass) FROM generate_series(1,4::bigint); });
-like($stderr, qr/sequence returned negative value/, "psql error message for nextval cycling back to negative");
+like($stderr, qr/produced a negative result/, "psql error message for nextval cycling back to negative");
