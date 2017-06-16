@@ -392,6 +392,8 @@ bdr_fetch_sysid_via_node_id_ifexists(RepOriginId node_id, BDRNodeId *node, bool 
 		Oid local_dboid;
 
 		replorigin_by_oid(node_id, missing_ok, &riname);
+		if (riname == NULL)
+			return false;
 
 		bdr_parse_replident_name(riname, node, &local_dboid);
 		pfree(riname);
@@ -404,6 +406,7 @@ bdr_fetch_sysid_via_node_id_ifexists(RepOriginId node_id, BDRNodeId *node, bool 
 					 		node_id, local_dboid, MyDatabaseId)));
 		}
 	}
+	return true;
 }
 
 void
