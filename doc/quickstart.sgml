@@ -3,7 +3,8 @@
 
  <para>
   This section gives a quick introduction to &bdr, including setting up a
-  sample &bdr; installation and a few simple examples to try.
+  sample &bdr; installation and a few simple examples to try. Note that this
+  section assumes 9.6bdr and doesn't apply exactly to 9.4bdr.
  </para>
 
  <para>
@@ -19,7 +20,7 @@
  <note>
   <para>
    BDR uses <ulink
-   url="https://www.postgresql.org/docs/9.4/static/libpq-connect.html#LIBPQ-CONNSTRING">libpq
+   url="https://www.postgresql.org/docs/9.6/static/libpq-connect.html#LIBPQ-CONNSTRING">libpq
    connection strings</ulink> throughout. The term "DSN" (for "data source
    name") refers to a libpq connection string.
   </para>
@@ -44,33 +45,9 @@
     Information about installing &bdr; from packages can be found in <xref linkend="installation-packages"> or installing from source
     can be found in <xref linkend="installation-source">.
     </para>
-    <para>
-    If you just want to try BDR out quickly and you're on a Linux system (or have a Linux VM to play with),
-    you can run a script that'll set up a temporary BDR install in your home directory. <emphasis>
-    This installation method is only suitable for trying out BDR, not for production or for use on a
-    system with valuable data on it.</emphasis>
-    To install the latest stable release, run:
-    <screen>
-    <prompt>$</prompt> curl -s "https://raw.githubusercontent.com/2ndQuadrant/bdr/bdr-plugin/REL1_0_STABLE/scripts/bdr_quickstart.sh" | bash
-    </screen>
-    When the install finishes, the script prints:
-    </para>
-    <programlisting>
-    ---------------------------
-    BDR compiled and installed.
-
-    Sources at /home/myuser/2ndquadrant_bdr/bdr-src
-    Installed to /home/myuser/2ndquadrant_bdr/bdr
-
-    Now add it to your PATH:
-      export PATH=/home/myuser/2ndquadrant_bdr/bdr/bin:$PATH
-    and carry on with the quickstart instructions.
-     ---------------------------
-    </programlisting>
 
     <para>
-    To use these new binaries, set your path to point to them. If you used the
-    quickstart script, it told you the command to use. If you installed from source,
+    To use these new binaries, set your path to point to them. If you installed from source,
     add the <literal>bin</literal> directory of your BDR install, e.g.:
     </para>
     <programlisting>
@@ -80,7 +57,7 @@
     or, if you installed from RPMs, run:
     </para>
     <programlisting>
-    export PATH=/usr/pgsql-9.4/bin:$PATH
+    export PATH=/usr/pgsql-9.6/bin:$PATH
     </programlisting>
     <para>
     Note that this only affects the terminal you ran the install from and makes
@@ -272,7 +249,7 @@
     <programlisting>
     psql -p 5598 -U postgres bdrdemo
 
-      CREATE TABLE t1bdr (c1 INT, PRIMARY KEY (c1));
+      SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.t1bdr (c1 INT, PRIMARY KEY (c1)); $DDL$);
       INSERT INTO t1bdr VALUES (1);
       INSERT INTO t1bdr VALUES (2);
       -- you will see two rows
@@ -299,6 +276,41 @@
       -- you will see one row
       SELECT * FROM t1bdr;
     </programlisting>
+    <para>
+    Create and use global sequence::
+    </para>
+    <programlisting>
+    psql -p 5598 -U postgres bdrdemo
+
+      -- Create a normal local sequence
+      SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE SEQUENCE public.test_seq; $DDL$);
+    </programlisting>
+    <para>
+    Once you've created a global sequence you may use it with bdr.global_seq_nextval(seqname).
+    Note: The destination column must be BIGINT. See <xref linkend="global-sequence-limitations">.
+    </para>
+    <programlisting>
+    psql -p 5598 -U postgres bdrdemo
+
+      -- Use the global sequence
+      SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl (id bigint DEFAULT bdr.global_seq_nextval('public.test_seq'),name text); $DDL$);
+   
+    </programlisting>
+    <para>
+    Insert and check the id.
+    </para>
+    <programlisting>
+    psql -p 5598 -U postgres bdrdemo
+
+      -- Insert into the table
+      INSERT INTO test_tbl(name) VALUES ('first-entry');
+      -- you will see database-generated ids
+      SELECT * from test_tbl;
+ 
+    </programlisting>
+    <para>
+    To enable global sequence use on a BIGSERIAL column see <xref linkend="global-sequence-usage">.
+    </para>
 
   </sect1>
 </chapter>

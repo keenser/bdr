@@ -69,9 +69,11 @@
 
    <para>
 	To install BDR from RPMs you should first download and install the
-	repository RPM for your distro. This RPM will configure the download
-	location for the BDR packages and load the signing key into your RPM
-	database so that the package digital signatures may be verified.
+	repository RPM for your distro. See <ulink
+        url="https://www.2ndquadrant.com/en/resources/bdr/bdr-installation-instructions/">
+        BDR repository installation</ulink>.
+        This RPM will configure the download location for the BDR packages and load the
+        signing key into your RPM database so that the package digital signatures may be verified.
    </para>
 
    <note>
@@ -80,23 +82,6 @@
      signing key. See <xref linkend="appendix-signatures">.
     </para>
    </note>
-
-   <para>
-    RHEL and CentOS users should download and install the appropriate repo rpm:
-
-    <programlisting>
-     # RHEL/CentOS users only:
-     sudo dnf install http://packages.2ndquadrant.com/bdr/yum-repo-rpms/bdr-redhat-latest.noarch.rpm
-    </programlisting>
-
-    Fedora users should download and install the Fedora RPM for Fedora 19 and 20, or run:
-
-    <programlisting>
-     # Fedora users only
-     sudo dnf install http://packages.2ndquadrant.com/bdr/yum-repo-rpms/bdr-fedora-latest.noarch.rpm
-    </programlisting>
-   </para>
-
   </sect3>
 
   <sect3>
@@ -132,10 +117,6 @@
  <sect2 id="installation-packages-debian" xreflabel="Installing from packages on Debian or Ubuntu">
   <title>Debian or Ubuntu, PostgreSQL 9.6</title>
 
-  <para>
-   Packages for Debian and Ubuntu are available from
-   <ulink url="http://packages.2ndquadrant.com/bdr/apt/">http://packages.2ndquadrant.com/bdr/apt/</ulink>.
-  </para>
 
   <para>
    These instructions are for BDR on PostgreSQL 9.6+. For BDR-Postgres 9.4, see
@@ -161,26 +142,9 @@
 
    <para>
     To install BDR from DEBs you first need to add the BDR
-    repository to your server.
+    repository to your server. See <ulink url="https://www.2ndquadrant.com/en/resources/bdr/bdr-installation-instructions/">BDR repository installation</ulink>.
    </para>
 
-   <para>
-    Create the file <filename>/etc/apt/sources.list.d/2ndquadrant.list</> with the
-    repository URL below, changing <replaceable>wheezy</replaceable> to the codename
-    of the Debian/Ubuntu version you are using, as obtained with <literal>lsb_release -c</literal>:
-    <programlisting>
-      deb http://packages.2ndquadrant.com/bdr/apt/ <replaceable>wheezy</replaceable>-2ndquadrant main
-    </programlisting>
-   </para>
-
-   <para>
-    Import the repository key from <ulink url="http://packages.2ndquadrant.com/bdr/apt/AA7A6805.asc">http://packages.2ndquadrant.com/bdr/apt/AA7A6805.asc</ulink>,
-    update the package lists, and start installing packages:
-    <programlisting>
-     wget --quiet -O - http://packages.2ndquadrant.com/bdr/apt/AA7A6805.asc | sudo apt-key add -
-     sudo apt-get update
-    </programlisting>
-   </para>
 
    <note>
     <para>
@@ -255,18 +219,7 @@
 
    <para>
     RHEL and CentOS users should download and install the appropriate repo rpm:
-
-    <programlisting>
-     # RHEL/CentOS users only:
-     sudo yum install http://packages.2ndquadrant.com/postgresql-bdr94-2ndquadrant/yum-repo-rpms/postgresql-bdr94-2ndquadrant-redhat-latest.noarch.rpm
-    </programlisting>
-
-    Fedora users should download and install the Fedora RPM for Fedora 19 and 20, or run:
-
-    <programlisting>
-     # Fedora users only
-     sudo yum install http://packages.2ndquadrant.com/postgresql-bdr94-2ndquadrant/yum-repo-rpms/postgresql-bdr94-2ndquadrant-fedora-latest.noarch.rpm
-    </programlisting>
+    See <ulink url="https://www.2ndquadrant.com/en/resources/bdr/bdr-installation-instructions/">BDR repository installation</ulink>.
    </para>
 
    <para>
@@ -389,8 +342,8 @@
    <title>Add the BDR repository</title>
 
    <para>
-    To install BDR from DEBs you first need to add the BDR
-    repository to your server.
+    To install BDR from DEBs you first need to add the BDR repository to your server.
+    See <ulink url="https://www.2ndquadrant.com/en/resources/bdr/bdr-installation-instructions/">BDR repository installation</ulink>.
    </para>
 
    <para>
@@ -400,23 +353,6 @@
 	<emphasis> not</> emphasis install PostgreSQL 9.4 from apt.postgresql.org.
    </para>
 
-   <para>
-    Create the file <filename>/etc/apt/sources.list.d/2ndquadrant.list</> with the
-    repository URL below, changing <replaceable>wheezy</replaceable> to the codename
-    of the Debian/Ubuntu version you are using, as obtained with <literal>lsb_release -c</literal>:
-    <programlisting>
-      deb http://packages.2ndquadrant.com/bdr/apt/ <replaceable>wheezy</replaceable>-2ndquadrant main
-    </programlisting>
-   </para>
-
-   <para>
-    Import the repository key from <ulink url="http://packages.2ndquadrant.com/bdr/apt/AA7A6805.asc">http://packages.2ndquadrant.com/bdr/apt/AA7A6805.asc</ulink>,
-    update the package lists, and start installing packages:
-    <programlisting>
-     wget --quiet -O - http://packages.2ndquadrant.com/bdr/apt/AA7A6805.asc | sudo apt-key add -
-     sudo apt-get update
-    </programlisting>
-   </para>
 
    <note>
     <para>

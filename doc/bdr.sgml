@@ -96,8 +96,8 @@
  <part id="getting-started">
   <title>Getting started</title>
   &overview;
-  &quickstart;
   &install;
+  &quickstart;
  </part>
 
  <part id="manual" xreflabel="BDR administration manual">

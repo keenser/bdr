@@ -159,6 +159,19 @@
    <function>nextval(seqname)</function> to get values from it, use
    <function>bdr.global_seq_nextval(seqname)</function>. The destination
    column must be <type>BIGINT</type> as the result is 64 bits wide.
+   <programlisting>
+   BEGIN;
+
+    CREATE TABLE gstest (
+      id bigint primary key,
+      parrot text
+    );
+
+    CREATE SEQUENCE gstest_id_seq OWNED BY gstest.id;
+
+    ALTER TABLE gstest ALTER COLUMN id SET DEFAULT bdr.global_seq_nextval('gstest_id_seq');
+   
+   </programlisting>
   </para>
 
   <para>
@@ -168,7 +181,7 @@
    table creation. There is currently no facility to do this automatically and
    transparently so you need to do it in a follow up command like:
    <programlisting>
-    ALTER TABLE my_table ALTER COLUMN my_bigserial DEFAULT bdr.global_seq_nextval('my_table_my_bigserial_seq');
+    ALTER TABLE my_table ALTER COLUMN my_bigserial SET DEFAULT bdr.global_seq_nextval('my_table_my_bigserial_seq');
    </programlisting>
   </para>
 
@@ -302,7 +315,10 @@
    get new values with <literal>nextval(...)</> without checking the table's
    actual <literal>DEFAULT</>, it will produce values using the underlying
    sequence not the BDR global sequence. This will very likely result in
-   conflicts.
+   conflicts.You'll have to change/override this, or get them to fetch generated
+   IDs from the database after insert, which most support. Also many ORMs assume 
+   that nextval will return some 'n' values, like an increment of 50. They can't
+   do that with global sequences. Make sure their increment is 1. 
   </para>
 
   <para>

@@ -1184,7 +1184,7 @@ COMMIT;
           <para>
            <literal>ALTER COLUMN ... SET (..)</literal> - is not
            supported at the moment. Note however that ALTER COLUMN ... SET
-           [NOT] NULL is supported.
+           [NOT] NULL and ALTER COLUMN ... SET DEFAULT are supported.
           </para>
          </listitem>
 
