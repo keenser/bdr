@@ -312,99 +312,27 @@
    </para>
 
    <para>
-    While apply is strictly ordered for any given origin node, there is no
-    enforcement of ordering of transactions between two different nodes, so
-    it's possible for (e.g.) node1 to insert a row into T1, which is replayed to node2.
-    node2 inserts a row into T2 which has a foreign key reference to the row from T1.
-    On node3, if the transaction from node2 that inserts the row into T2 is received
-    <emphasis>before</emphasis> the transaction from node1 that inserts the row into T1,
-    the transaction from node2 will fail to apply. This failure will record a rollback
-    in <xref linkend="catalog-pg-stat-bdr"> and an <literal>ERROR</literal>
-    with details in the PostgreSQL error log on the applying node (node3). In
-    this case &bdr; will retry the transaction from node2 periodicially, so
-    once it's replayed the transaction from node1 that it depends on the
-    transaction will commit successfully.
-   </para>
-
-   <sect3 id="conflict-foreign-key-deadlock"
-          xreflabel="Foreign key constraint deadlocks">
-    <title>Foreign key constraint deadlocks</title>
-
-   <para>
-    <indexterm><primary>limitations</primary></indexterm>
-    <indexterm><primary>divergence</primary></indexterm>
-    Simple foreign key constraint conflicts are generally transient and
-    require no administrator action, but for transactions that change multiple
-    entities this is not always the case. It is possible for
-    concurrent changes to tables with foreign key constraints to create
-    <emphasis>inter-node replication deadlocks</emphasis> where no node can
-    apply changes from any other node because they conflict with local data.
-    This causes replication activity to stop until the deadlock is broken by a
-    local data change on one or more of the nodes.
+    BDR applies changes with <literal>session_replication_role = 'replica'</>
+    so foreign keys are <emphasis>not</> checked when applying changes. In a
+    multi-master environment this can result in FK violations. Most are transient
+    and only exist until replication catches up with changes from another node,
+    but it's also possible to create dangling FKs because there's no inter-node
+    row locking in BDR. This is a necessary consequence of a partition-tolerant
+    asynchronous multi-master system, since one node can insert and commit a new
+    child row in some FK relationship at the same time another node concurrently
+    deletes the parent row. It's recommended that use of FKs be constrained to
+    sets of closely related entities that are generally modified from only one node,
+    are infrequently modified, or where the modification's concurrency is
+    application-mediated.
    </para>
 
    <para>
-    For example, take a two node system with two tables and some existing data:
-    <programlisting>
-    CREATE TABLE parent(
-     id integer primary key
-    );
-
-    CREATE TABLE child(
-     id integer primary key,
-     parent_id integer not null references parent(id)
-    );
-
-    INSERT INTO parent(id)
-    VALUES (1), (2);
-
-    INSERT INTO child(id, parent_id)
-    VALUES (11, 1), (11, 2);
-    </programlisting>
-    If node A does:
-    <programlisting>
-    INSERT INTO child(id, parent_id)
-    VALUES (21, 2);
-    </programlisting>
-    and <emphasis>at the same time</emphasis> node B does:
-    <programlisting>
-    DELETE FROM child WHERE parent_id = 2;
-    DELETE FROM parent WHERE id = 2;
-    </programlisting>
-    then we have a situation where the transaction from node A cannot apply
-    successfully to the <literal>child</literal> table on node B because the
-    referenced <literal>parent</literal> no longer exists. The transaction
-    from node B cannot apply to node A because it deletes a
-    <literal>parent</literal> tuple that's still referenced, the new one with
-    id=21. Neither transaction can replay, and both will output periodic
-    <literal>ERROR</literal>s in the log files as they are retried. Since
-    &bdr; replays transactions from a given node strictly in order, neither
-    node can make progress with replication unless the user, or some 3rd node,
-    makes changes that resolve the deadlock.
+    It's also possible to <literal>bdr.acquire_global_lock('ddl')</>
+    to lock out other nodes from making concurrent changes, but this is a heavyweight
+    option and must be done in <emphasis>all</> transactions that may modify the
+    related tables. So it's best used for rarely modified data where consistency
+    is crucial.
    </para>
-
-   <para>
-    It is important to note that when we manually deleted the child tuples
-    on node B, the newly inserted child on node A was not affected because
-    it had not yet replicated to node B. If either node replays the other's
-    transaction before attempting its own local transaction then no problem
-    will occur.
-   </para>
-
-   <para>
-    Solving such a foreign key deadlock requires that you fix the constraint
-    issue on each end. In this case, you would need to insert a dummy
-    <literal>parent</literal> row on node B and delete the new child on node
-    A. Replay will continue past the deadlock point.
-   </para>
-
-   <para>
-    &bdr; can't just apply the changes from each end anyway because doing so
-    would result in tables that violated their declared foreign key
-    constraints, which most users would view as corruption.
-   </para>
-
-   </sect3>
 
   </sect2>
 
