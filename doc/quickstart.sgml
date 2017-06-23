@@ -39,33 +39,15 @@
    configuration files to load BDR, and start them up.
   </para>
 
-  <sect1 id="quickstart-installing">
-    <title>Installing the patched PostgreSQL binaries</title>
-    <para>
-    Information about installing &bdr; from packages can be found in <xref linkend="installation-packages"> or installing from source
-    can be found in <xref linkend="installation-source">.
-    </para>
+  <para>
+   This quickstart guide only discusses BDR on PostgreSQL 9.6. For BDR on patched
+   PostgreSQL 9.4 see the main docs and install information.
+  </para>
 
-    <para>
-    To use these new binaries, set your path to point to them. If you installed from source,
-    add the <literal>bin</literal> directory of your BDR install, e.g.:
-    </para>
-    <programlisting>
-    export PATH=$HOME/2ndquadrant_bdr/bdr/bin:$PATH
-    </programlisting>
-    <para>
-    or, if you installed from RPMs, run:
-    </para>
-    <programlisting>
-    export PATH=/usr/pgsql-9.6/bin:$PATH
-    </programlisting>
-    <para>
-    Note that this only affects the terminal you ran the install from and makes
-    no permanent changes. If you wish you can change your path in your
-    <filename>.bash_profile</filename>, or just run the export command in
-    each terminal you open.
-    </para>
-  </sect1>
+  <para>
+  Information about installing &bdr; from packages can be found in <xref linkend="installation-packages"> or installing from source
+  can be found in <xref linkend="installation-source">.
+  </para>
 
   <sect1 id="quickstart-instances">
     <title>Creating BDR-enabled PostgreSQL nodes/instances</title>
@@ -89,6 +71,15 @@
      the two instances. They just create two independent PostgreSQL
      instances, ready to be configured and started.
     </para>
+
+    <note>
+     <para>
+      In a production install you should use the operating system and package
+      management system's standard locations for the data directory and startup
+      scripts. Manual initdb is mainly is suitable for test and
+      experimentation.
+     </para>
+    </note>
 
   </sect1>
 
