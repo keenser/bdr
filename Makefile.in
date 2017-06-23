@@ -20,14 +20,16 @@ DATA = \
 	extsql/bdr--1.0.0.0--1.0.1.0.sql \
 	extsql/bdr--1.0.1.0--1.0.2.0.sql \
 	extsql/bdr--1.0.2.0--1.0.3.0.sql \
-	extsql/bdr--1.0.3.0--2.0.0.0.sql
+	extsql/bdr--1.0.3.0--2.0.0.0.sql \
+	extsql/bdr--2.0.0.0--2.0.1.0.sql
 
 # Remember to add $(call genextfile,from,to) invocations for these
 DATA_built = \
 	extsql/bdr--1.0.1.0.sql \
 	extsql/bdr--1.0.2.0.sql \
 	extsql/bdr--1.0.3.0.sql \
-	extsql/bdr--2.0.0.0.sql
+	extsql/bdr--2.0.0.0.sql \
+	extsql/bdr--2.0.1.0.sql
 
 DOCS = README.bdr bdr.conf.sample
 
@@ -245,6 +247,7 @@ $(eval $(call genextfile,1.0.0.0,1.0.1.0))
 $(eval $(call genextfile,1.0.1.0,1.0.2.0))
 $(eval $(call genextfile,1.0.2.0,1.0.3.0))
 $(eval $(call genextfile,1.0.3.0,2.0.0.0))
+$(eval $(call genextfile,2.0.0.0,2.0.1.0))
 
 pg_dump_dir:
 	mkdir -p $(BDR_DUMP_DIR)
