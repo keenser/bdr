@@ -943,7 +943,7 @@ bdr_acquire_ddl_lock(BDRLockType lock_type)
 	if (this_xact_acquired_lock)
 	{
 		elog(ddl_lock_log_level(DDL_LOCK_TRACE_STATEMENT),
-			LOCKTRACE "attempting to acquire in mode <%s> (upgrading from <%s>) from <%d> peer nodes for "BDR_NODEID_FORMAT_WITHNAME,
+			LOCKTRACE "acquiring in mode <%s> (upgrading from <%s>) from <%d> peer nodes for "BDR_NODEID_FORMAT_WITHNAME,
 			bdr_lock_type_to_name(lock_type),
 			bdr_lock_type_to_name(bdr_my_locks_database->lock_type),
 			bdr_my_locks_database->nnodes,
@@ -952,7 +952,7 @@ bdr_acquire_ddl_lock(BDRLockType lock_type)
 	else
 	{
 		elog(ddl_lock_log_level(DDL_LOCK_TRACE_STATEMENT),
-			LOCKTRACE "attempting to acquire in mode <%s> from <%d> nodes for "BDR_NODEID_FORMAT_WITHNAME,
+			LOCKTRACE "acquiring in mode <%s> from <%d> nodes for "BDR_NODEID_FORMAT_WITHNAME,
 			bdr_lock_type_to_name(lock_type),
 			bdr_my_locks_database->nnodes,
 			BDR_LOCALID_FORMAT_WITHNAME_ARGS);
