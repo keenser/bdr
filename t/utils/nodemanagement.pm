@@ -226,11 +226,15 @@ sub generate_bdr_logical_join_query {
 sub bdr_logical_join {
     my ($local_node, $join_node, %params) = @_;
 
+    my $nowait = delete $params{nowait} // 0;
+
     my $join_query = generate_bdr_logical_join_query($local_node, $join_node, %params);
     $local_node->safe_psql($bdr_test_dbname, $join_query);
 
-    $local_node->safe_psql( $bdr_test_dbname,
-        'SELECT bdr.bdr_node_join_wait_for_ready()' );
+    if (!$nowait) {
+        $local_node->safe_psql( $bdr_test_dbname,
+            'SELECT bdr.bdr_node_join_wait_for_ready()' );
+    }
 }
 
 # Copy postgresql.conf from an existing node to a temporary
