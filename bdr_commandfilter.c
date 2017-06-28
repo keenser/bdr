@@ -634,11 +634,19 @@ statement_affects_only_nonpermanent(Node *parsetree)
 }
 
 static bool
-allowed_on_read_only_node(Node *parsetree)
+allowed_on_read_only_node(Node *parsetree, const char **tag)
 {
 	/*
 	 * This list is copied verbatim from check_xact_readonly
-	 * we only do different action on it. */
+	 * we only do different action on it.
+	 *
+	 * Note that check_xact_readonly handles COPY elsewhere.
+	 * We capture it here so don't delete it from this list
+	 * if you update it. Make sure to check other callsites
+	 * of PreventCommandIfReadOnly too.
+	 *
+	 * BDR handles plannable statements in BdrExecutorStart, not here.
+	 */
 	switch (nodeTag(parsetree))
 	{
 		case T_AlterDatabaseStmt:
@@ -706,7 +714,16 @@ allowed_on_read_only_node(Node *parsetree)
 		case T_AlterTableSpaceOptionsStmt:
 		case T_CreateForeignTableStmt:
 		case T_SecLabelStmt:
+		{
+			*tag = CreateCommandTag(parsetree);
 			return statement_affects_only_nonpermanent(parsetree);
+		}
+		/* Pg checks this in DoCopy not check_xact_readonly */
+		case T_CopyStmt:
+		{
+			*tag = "COPY FROM";
+			return !((CopyStmt*)parsetree)->is_from || statement_affects_only_nonpermanent(parsetree);
+		}
 		default:
 			/* do nothing */
 			break;
@@ -840,11 +857,15 @@ bdr_commandfilter(Node *parsetree,
 		goto done;
 
 	/* check for read-only mode */
-	if (bdr_local_node_read_only() && !allowed_on_read_only_node(parsetree))
-		ereport(ERROR,
-				(errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
-				 errmsg("Cannot run %s on read-only BDR node.",
-						CreateCommandTag(parsetree))));
+	{
+		const char * tag = NULL;
+		if (bdr_local_node_read_only()
+			&& !bdr_permit_unsafe_commands
+			&& !allowed_on_read_only_node(parsetree, &tag))
+			ereport(ERROR,
+					(errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
+					 errmsg("Cannot run %s on read-only BDR node.", tag)));
+	}
 
 	/* commands we skip (for now) */
 	switch (nodeTag(parsetree))

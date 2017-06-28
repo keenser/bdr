@@ -436,10 +436,10 @@
       </term>
       <listitem>
        <para>
-        Only affects BDR. Permits execution of schema
-        changes that cannot safely be replicated. This is primarily
-        used internally, but can also be used in other cases.  This
-        option can be set at any time, but only by superusers.
+	Only affects BDR. Permits execution of schema changes that cannot
+	safely be replicated and overrides the read-only status of a node. This
+	is primarily used internally, but can also be used in other cases.
+	This option can be set at any time, but only by superusers.
        </para>
        <warning>
         <para>

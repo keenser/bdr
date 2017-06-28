@@ -32,6 +32,8 @@
 #include "parser/parse_relation.h"
 #include "parser/parsetree.h"
 
+#include "replication/origin.h"
+
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
 
@@ -437,6 +439,10 @@ BdrExecutorStart(QueryDesc *queryDesc, int eflags)
 	if (bdr_always_allow_writes)
 		goto done;
 
+	/* don't perform filtering while replaying */
+	if (replorigin_session_origin != InvalidRepOriginId)
+		goto done;
+
 	/* identify whether this is a modifying statement */
 	if (plannedstmt != NULL &&
 		(plannedstmt->hasModifyingCTE ||
@@ -451,7 +457,7 @@ BdrExecutorStart(QueryDesc *queryDesc, int eflags)
 	if (!bdr_is_bdr_activated_db(MyDatabaseId))
 		goto done;
 
-	read_only_node = bdr_local_node_read_only();
+	read_only_node = bdr_local_node_read_only() && !bdr_permit_unsafe_commands;
 
 	/* check for concurrent global DDL locks */
 	bdr_locks_check_dml();

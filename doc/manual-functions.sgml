@@ -255,6 +255,8 @@
         in a replication set) that have writes restricted. Note that read-only
         mode is persistent across restarts. <literal>bdr.bdr_get_local_node_name()</>
         can be used to supply the node name of the local node.
+	<xref linkend="guc-bdr-permit-unsafe-ddl-commands"> can override
+	read-only mode on a per-session basis.
        </entry>
       </row>
 

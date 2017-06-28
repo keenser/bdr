@@ -24,18 +24,11 @@ is($node_a->safe_psql($bdr_test_dbname, q[SELECT 1 FROM pg_catalog.pg_extension 
     '1', 'bdr_test_dummy_extension got created on upstream');
 
 my $node_b = get_new_node('node_b');
-initandstart_node($node_b);
-bdr_logical_join($node_b, $node_a, nowait => 1);
-is($node_b->psql( $bdr_test_dbname, q[SET statement_timeout = '5s'; SELECT bdr.bdr_node_join_wait_for_ready();]),
-   3, 'psql timed out');
+initandstart_logicaljoin_node($node_b, $node_a);
 
-TODO: {
-    our $TODO = 'join currently fails';
-    check_join_status($node_b, $node_a);
+check_join_status($node_b, $node_a);
 
-    is($node_b->safe_psql($bdr_test_dbname, q[SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'bdr_test_dummy_extension']),
-        '1', 'bdr_test_dummy_extension got restored on downstream');
-}
-undef $TODO;
+is($node_b->safe_psql($bdr_test_dbname, q[SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'bdr_test_dummy_extension']),
+    '1', 'bdr_test_dummy_extension got restored on downstream');
 
 done_testing();
