@@ -902,8 +902,15 @@ bdr_commandfilter(Node *parsetree,
 			goto done;
 
 		/* We replicate the rows changed, not the statements, for these */
-		case T_CopyStmt:
 		case T_ExecuteStmt:
+			goto done;
+
+		/*
+		 * for COPY we'll replicate the rows changed and don't care about the
+		 * statement. It cannot UPDATE or DELETE so we don't need a PK check.
+		 * We already checked read-only mode.
+		 */
+		case T_CopyStmt:
 			goto done;
 
 		/*
