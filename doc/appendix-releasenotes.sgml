@@ -15,8 +15,48 @@
   See also: <xref linkend="upgrade">.
  </para>
 
+ <sect1 id="release-2.0.2">
+  <title>Release 2.0.2</title>
+
+  <para><emphasis>Thu Jun 29, 2017</></>
+
+  <para>
+   BDR 2.0.2 is a maintenance release for the 2.0 series.
+  </para>
+
+  <para>
+   Fixes and improvements:
+   <itemizedlist>
+    <listitem><para>Fix issue where COPY wasn't filtered by read-only mode</></>
+    <listitem><para>Allow <literal>bdr.permit_unsafe_ddl_commands</> to override read-only mode on a node</></>
+    <listitem><para>Fix join when postgis extension (or any other extension containing <literal>INSERT</>s in the extension script) is in use</></>
+   </itemizedlist>
+  </para>
+
+ </sect1>
+
+ <sect1 id="release-2.0.1">
+  <title>Release 2.0.1</title>
+
+  <para><emphasis>Fri Jun 23, 2017</></>
+
+  <para>
+   BDR 2.0.1 is a maintenance release for the 2.0 series.
+  </para>
+
+  <para>
+   Fixes and improvements:
+   <itemizedlist>
+    <listitem><para>Documentation updates to reflect 2.0 changes</></>
+   </itemizedlist>
+  </para>
+
+ </sect1>
+
  <sect1 id="release-2.0.0">
   <title>Release 2.0.0</title>
+
+  <para><emphasis>Fri Jun 16, 2017</></>
 
   <para>
    BDR 2.0 is a major update that brings compatibility with unmodified community
@@ -66,6 +106,12 @@
       resilient against network partitions.
      </>
     </>
+    <listitem>
+     <para>
+      Nodes are now read-only while joining, and only become read/write once
+      fully joined.
+     </para>
+    </listitem>
    </itemizedlist>
   </para>
 
