@@ -1,0 +1,4 @@
+comment = 'Dummy extension for BDR tests'
+default_version = '1.0'
+relocatable = false
+schema = pg_catalog
