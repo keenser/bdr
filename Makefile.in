@@ -441,4 +441,23 @@ $(OBJS): .pg_version
 .pg_version:
 	@echo '$(MAJORVERSION)' | cmp -s - $@ || echo '$(MAJORVERSION)' > $@
 
+export PG_CONFIG
+export PATH
+
+bdr_test_dummy_extension_all:
+	$(MAKE) -C bdr_test_dummy_extension all
+
+bdr_test_dummy_extension_clean:
+	$(MAKE) -C bdr_test_dummy_extension clean
+
+bdr_test_dummy_extension_install:
+	$(MAKE) -C bdr_test_dummy_extension install
+
+all: bdr_test_dummy_extension_all
+clean: bdr_test_dummy_extension_clean
+
+# we do NOT install bdr_test_dummy_extension for the normal 'install' target,
+# only before tests.
+prove_installcheck: bdr_test_dummy_extension_install
+
 .PHONY: all check regresscheck isolationcheck doc
