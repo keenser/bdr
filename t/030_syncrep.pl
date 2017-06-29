@@ -189,7 +189,7 @@ for my $node (@nodes) {
 }
 
 # Everything should work while the system is all-up
-is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('a: 2-1 B2 C2')]), 0, '2-sync 1-safe B up C up');
+is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-1 B2 C2')]), 0, '2-sync 1-safe B up C up');
 
 # or when one, but not both, nodes are down
 note "stopping B";
@@ -209,7 +209,7 @@ is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-1 B2 C1')]), 0,'2-
 note "starting C";
 $node_c->start;
 
-is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('a: 2-1 B2 C2 2')]), 0, '2-sync 1-safe B up C up after');
+is($node_a->psql('bdr_test', q[INSERT INTO t(x) VALUES ('A: 2-1 B2 C2 2')]), 0, '2-sync 1-safe B up C up after');
 
 #-------------------------------------
 # Consistent?
@@ -225,8 +225,8 @@ node_a|A: 1-1 B1
 node_a|A: 1-1 B2
 node_a|A: 2-1 B1 C2
 node_a|A: 2-1 B2 C1
-node_a|a: 2-1 B2 C2
-node_a|a: 2-1 B2 C2 2
+node_a|A: 2-1 B2 C2
+node_a|A: 2-1 B2 C2 2
 node_a|A: 2-2 B1 C2
 node_a|A: 2-2 B2 C1
 node_a|A: 2-2 B2 C2
