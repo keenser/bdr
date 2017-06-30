@@ -1193,7 +1193,11 @@ cancel_conflicting_transactions(void)
 		PGXACT	   *pgxact;
 
 		if (pgproc == NULL)
+		{
+			/* backend went away concurrently */
+			conflict++;
 			continue;
+		}
 
 		pgxact = &ProcGlobal->allPgXact[pgproc->pgprocno];
 
