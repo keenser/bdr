@@ -324,6 +324,55 @@ COMMIT;
 
     <variablelist>
 
+     <varlistentry id="ddl-create-index-concurrently">
+      <term><varname>CREATE INDEX CONCURRENTLY</varname>
+       <indexterm>
+        <primary><varname>CREATE INDEX CONCURRENTLY</varname></primary>
+       </indexterm>
+      </term>
+      <listitem>
+       <para>
+		<literal>CREATE INDEX CONCURRENTLY</literal> is not replicated. It
+		requires a top-level transaction so it cannot be run via
+		<literal>bdr.bdr_replicate_ddl_command</>, and is not currently
+		supported for direct DDL capture.
+       </para>
+       <para>
+		It's best to specify an index name and use the same name on all nodes.
+		Otherwise a later <literal>DROP INDEX</> on one node may fail to
+		replicate to the other nodes and cause replication to stall.
+       </para>
+	   <para>
+	    Because this command is not replicated, but affects database
+		objects that are, it requires that users explicitly set
+		<literal>bdr.skip_ddl_replication</>, making it clear that
+		the user/app knows it will not be replicated. This will prevent
+		compatility breaks if in future BDR adds support for replicating
+		the command. Use:
+		<programlisting>
+		SET bdr.skip_ddl_replication = on;
+		CREATE INDEX CONCURRENTLY idxname ON tblname(cols);
+		RESET bdr.skip_ddl_replication;
+		</programlisting>
+	   </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="ddl-drop-index-concurrently">
+      <term><varname>DROP INDEX CONCURRENTLY</varname>
+       <indexterm>
+        <primary><varname>DROP INDEX CONCURRENTLY</varname></primary>
+       </indexterm>
+      </term>
+      <listitem>
+       <para>
+		<literal>DROP INDEX CONCURRENTLY</literal> is not replicated for the
+		same reasons as <literal>CREATE INDEX CONCURRENTLY</>.  The same
+		requirements and workarounds apply.
+       </para>
+      </listitem>
+     </varlistentry>
+
      <varlistentry id="ddl-create-database">
       <term><varname>CREATE DATABASE</varname>
        <indexterm>
@@ -601,63 +650,6 @@ COMMIT;
         <literal>CREATE TABLE ... OF TYPE</literal> is prohibited
         unless <literal>UNLOGGED</literal>
         or <literal>UNLOGGED</literal> temporary is specified.
-       </para>
-      </listitem>
-     </varlistentry>
-
-     <varlistentry id="ddl-create-index-concurrently">
-      <term><varname>CREATE INDEX CONCURRENTLY</varname>
-       <indexterm>
-        <primary><varname>CREATE INDEX CONCURRENTLY</varname></primary>
-       </indexterm>
-      </term>
-      <listitem>
-       <para>
-        <literal>CREATE INDEX CONCURRENTLY</literal> is prohibited. It
-	requires a top-level transaction so it cannot be run via
-	<literal>bdr.bdr_replicate_ddl_command</>, and is not currently
-	supported for direct DDL capture.
-       </para>
-       <para>
-        Running <literal>CREATE INDEX CONCURRENTLY</> is one of the safe
-	uses for <xref linkend="guc-bdr-skip-ddl-replication">. You can
-	create the index on each node individually without any global DDL
-	lock. On each node, run:
-	<programlisting>
-	SET bdr.skip_ddl_replication = on;
-        SET bdr.permit_unsafe_ddl_commands = on;
-	SET bdr.skip_ddl_locking = on;
-	CREATE INDEX CONCURRENTLY ...;
-	RESET bdr.skip_ddl_locking;
-	RESET bdr.permit_unsafe_ddl_commands;
-	RESET bdr.skip_ddl_replication;
-	</programlisting>
-	It's best to specify an index name and use the same name on all nodes.
-	Otherwise a later <literal>DROP INDEX</> on one node may fail to
-	replicate to the other nodes and cause replication to stall.
-       </para>
-       <warning>
-        <para>
-	 It is important not to use the above settings without a thorough
-	 understanding of what they do, outside the specific situations
-	 they are documented as being safe. You can easily break replication
-	 with them.
-	</para>
-       </warning> 
-      </listitem>
-     </varlistentry>
-
-     <varlistentry id="ddl-drop-index-concurrently">
-      <term><varname>DROP INDEX CONCURRENTLY</varname>
-       <indexterm>
-        <primary><varname>DROP INDEX CONCURRENTLY</varname></primary>
-       </indexterm>
-      </term>
-      <listitem>
-       <para>
-        <literal>DROP INDEX CONCURRENTLY</literal> is prohibited
-	for the same reasons as <literal>CREATE INDEX CONCURRENTLY</>.
-	The same workarounds apply.
        </para>
       </listitem>
      </varlistentry>

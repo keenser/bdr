@@ -105,14 +105,14 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
 \d+ test_tbl_create_index
 
 SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP INDEX public.test1_idx; $DDL$);
--- DROP INDEX CONCURRENTLY currently gives error: Ref https://github.com/2ndQuadrant/bdr-private/issues/36
+-- Not supported via bdr.bdr_replicate_ddl_command, see //github.com/2ndQuadrant/bdr-private/issues/124
 SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP INDEX CONCURRENTLY public.test2_idx; $DDL$);
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
 \d+ test_tbl_create_index
 \c postgres
 \d+ test_tbl_create_index
 
--- CREATE INDEX CONCURRENTLY currently gives error: Ref https://github.com/2ndQuadrant/bdr-private/issues/35
+-- Not supported via bdr.bdr_replicate_ddl_command, see //github.com/2ndQuadrant/bdr-private/issues/124
 SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE INDEX CONCURRENTLY test1_idx ON public.test_tbl_create_index(val, val2); $DDL$);
 SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE UNIQUE INDEX CONCURRENTLY test2_idx ON public.test_tbl_create_index (lower(val2::text)); $DDL$);
 SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
@@ -120,6 +120,7 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
 \c regression
 \d+ test_tbl_create_index
 
+-- Not supported via bdr.bdr_replicate_ddl_command, see //github.com/2ndQuadrant/bdr-private/issues/124
 SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP INDEX CONCURRENTLY public.test1_idx; $DDL$);
 SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP INDEX CONCURRENTLY public.test2_idx; $DDL$);
 SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.test_tbl_create_index; $DDL$);

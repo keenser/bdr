@@ -1091,11 +1091,28 @@ bdr_commandfilter(Node *parsetree,
 				stmt = (IndexStmt *) parsetree;
 
 #if PG_VERSION_NUM >= 90600
-				/* FIXME disallow CREATE INDEX CONCURRENTLY for now */
+				/*
+				 * Only allow CONCURRENTLY when not wrapped in
+				 * bdr.replicate_ddl_command; see 2ndQuadrant/bdr-private#124
+				 * for details and linked issues.
+				 *
+				 * We can permit it but not replicate it otherwise.
+				 * To ensure that users aren't confused, only permit it when
+				 * bdr.skip_ddl_replication is set.
+				 */
 				if (stmt->concurrent && !bdr_permit_unsafe_commands)
-					error_on_persistent_rv(stmt->relation,
-										   "CREATE INDEX CONCURRENTLY",
-										   AccessExclusiveLock, false);
+				{
+					if (in_bdr_replicate_ddl_command)
+						ereport(ERROR,
+								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("CREATE INDEX CONCURRENTLY is not supported in bdr.replicate_ddl_command"),
+								 errhint("Run CREATE INDEX CONCURRENTLY on each node individually with bdr.skip_ddl_replication set")));
+
+					if (!bdr_skip_ddl_replication)
+						error_on_persistent_rv(stmt->relation,
+											   "CREATE INDEX CONCURRENTLY without bdr.skip_ddl_replication set",
+											   AccessExclusiveLock, false);
+				}
 #endif
 
 				if (stmt->whereClause && stmt->unique && !bdr_permit_unsafe_commands)
@@ -1197,12 +1214,28 @@ bdr_commandfilter(Node *parsetree,
 
 		case T_DropStmt:
 #if PG_VERSION_NUM >= 90600
-			/* FIXME disallow DROP INDEX CONCURRENTLY for now */
+			/*
+			 * DROP INDEX CONCURRENTLY is currently only safe when run outside
+			 * bdr.replicate_ddl_command, and only with
+			 * bdr.skip_ddl_replication set. See 2ndQuadrant/bdr-private#124
+			 * and linked issues.
+			 */
 			{
 				DropStmt   *stmt = (DropStmt *) parsetree;
 
 				if (stmt->removeType == OBJECT_INDEX && stmt->concurrent && !bdr_permit_unsafe_commands)
-					elog(ERROR, "DROP INDEX CONCURRENTLY not supported by 9.6bdr yet");
+				{
+					if (in_bdr_replicate_ddl_command)
+						ereport(ERROR,
+								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("DROP INDEX CONCURRENTLY is not supported in bdr.replicate_ddl_command"),
+								 errhint("Run DROP INDEX CONCURRENTLY on each node individually with bdr.skip_ddl_replication set")));
+
+					if (!bdr_skip_ddl_replication && !statement_affects_only_nonpermanent(parsetree))
+						ereport(ERROR,
+								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("DROP INDEX CONCURRENTLY is not supported without bdr.skip_ddl_replication set")));
+				}
 			}
 #endif
 			break;
