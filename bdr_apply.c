@@ -1971,7 +1971,16 @@ read_tuple_parts(StringInfo s, BDRRelation *rel, BDRTupleData *tup)
 	rnatts = pq_getmsgint(s, 4);
 
 	if (desc->natts != rnatts)
-		elog(ERROR, "tuple natts mismatch, %u vs %u", desc->natts, rnatts);
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("remote tuple has different column count to local table"),
+				 errdetail("Table \"%s\".\"%s\" has %u columns on local node "BDR_NODEID_FORMAT_WITHNAME" vs %u on remote node "BDR_NODEID_FORMAT_WITHNAME,
+							get_namespace_name(RelationGetNamespace(rel->rel)), RelationGetRelationName(rel->rel),
+							desc->natts,
+							BDR_LOCALID_FORMAT_WITHNAME_ARGS,
+							rnatts,
+							BDR_NODEID_FORMAT_WITHNAME_ARGS(origin)),
+				 errhint("This error arises if the number of columns on two nodes differ. This is most commonly caused by unsafe use of the bdr.skip_ddl_replication and/or bdr.skip_ddl_locking settings.")));
 
 	/* FIXME: unaligned data accesses */
 
