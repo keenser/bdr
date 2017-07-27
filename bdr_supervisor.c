@@ -318,7 +318,6 @@ bdr_get_supervisordb_oid(bool missingok)
 	return dboid;
 }
 
-
 /*
  * The BDR supervisor is a static bgworker that serves as the master/supervisor
  * for all BDR workers. It exists so that BDR can be enabled and disabled
@@ -340,6 +339,17 @@ bdr_supervisor_worker_main(Datum main_arg)
 	pqsignal(SIGHUP, bdr_sighup);
 	pqsignal(SIGTERM, bdr_sigterm);
 	BackgroundWorkerUnblockSignals();
+
+	/*
+	 * bgworkers aren't started until after recovery, even in hot standby. But
+	 * lets make this clear anyway; we can't safely start in recovery because
+	 * we'd possibly connect to peer slots already used by our upstream.
+	 */
+	if (RecoveryInProgress())
+	{
+		elog(INFO, "bdr refusing to start during recovery");
+		proc_exit(0);
+	}
 
 	/*
 	 * Unfortunately we currently can't access shared catalogs like
