@@ -1696,7 +1696,6 @@ bdr_locks_release_local_ddl_lock(const BDRNodeId * const lock)
 
 	while ((tuple = systable_getnext(scan)) != NULL)
 	{
-		elog(INFO, "XXX found global lock entry to delete in response to global lock release message");
 		elog(DEBUG2, "found global lock entry to delete in response to global lock release message");
 		simple_heap_delete(rel, &tuple->t_self);
 		bdr_locks_set_commit_pending_state(BDR_LOCKSTATE_NOLOCK);
