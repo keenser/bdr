@@ -50,6 +50,12 @@ $node_b->stop;
 
 $node_a->safe_psql($bdr_test_dbname, q[INSERT INTO initialdata(a) VALUES (2);]);
 
+ok(-e $node_b->data_dir . "/recovery.conf", "recovery.conf exists");
+
+# Write a deliberately bogus recovery target to recovery.conf to ensure that
+# bdr_init_copy's later entry overwrites it.
+$node_b->append_conf('recovery.conf', "recovery_target_name = 'bogus recovery target'\n");
+
 # We don't have to wait for the node to catch up, as bdr_init_copy will ensure
 # that happens for us, promoting it only once it's passed the replay position
 # where bdr_init_copy created a slot on the upstream.
@@ -67,6 +73,23 @@ command_ok(
 
 # PostgresNode doesn't know the DB got restarted
 $node_b->_update_pid(1);
+
+# Make sure recovery stopped at bdr_init_copy's recovery point not our faked up one
+my $found = 0;
+my $line;
+my $fh;
+open ($fh, $node_b->logfile . "_initcopy")
+	or die ("failed to open init copy log file: $!");
+while ($line = <$fh>)
+{
+	if ($line =~ 'recovery stopping at restore point "')
+	{
+		$found = 1;
+		last;
+	}
+}
+close($fh);
+like($line, qr/"bdr_/, "recovery stopped at bdr restore point");
 
 is($node_a->safe_psql($bdr_test_dbname, 'SELECT a FROM initialdata ORDER BY a'),
 	"1\n2",

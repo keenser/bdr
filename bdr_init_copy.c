@@ -125,7 +125,7 @@ static char *PQconninfoParamsToConnstr(const char *const * keywords, const char 
 static void appendPQExpBufferConnstrValue(PQExpBuffer buf, const char *str);
 
 static bool file_exists(const char *path);
-static bool is_pg_dir(const char *path);
+static bool path_file_exists(const char *path, const char *filename);
 static void copy_file(char *fromfile, char *tofile);
 static char *find_other_exec_or_die(const char *argv0, const char *target, const char *versionstr);
 static bool postmaster_is_alive(pid_t pid);
@@ -458,16 +458,16 @@ main(int argc, char **argv)
 	 */
 	print_msg(VERBOSITY_NORMAL,
 			  _("Bringing local node to the restore point ...\n"));
-	if (recovery_conf)
-	{
-		CopyConfFile(recovery_conf, "recovery.conf");
-	}
-	else
+
+	if (!path_file_exists(data_dir, "recovery.conf"))
 	{
 		appendPQExpBuffer(recoveryconfcontents, "standby_mode = 'on'\n");
 		appendPQExpBuffer(recoveryconfcontents, "primary_conninfo = '%s'\n",
 								escape_single_quotes_ascii(remote_connstr));
 	}
+	else
+		printf(_("updating recovery target in existing recovery.conf\n"));
+
 	appendPQExpBuffer(recoveryconfcontents, "recovery_target_name = '%s'\n", restore_point_name);
 	appendPQExpBuffer(recoveryconfcontents, "recovery_target_inclusive = true\n");
 	if (PG_VERSION_NUM/100 == 904)
@@ -930,7 +930,7 @@ check_data_dir(char *data_dir, RemoteInfo *remoteinfo)
 		case 3:		/* Exists, not empty */
 		case 4:
 			{
-				if (!is_pg_dir(data_dir))
+				if (!path_file_exists(data_dir, "PG_VERSION"))
 					die(_("Directory \"%s\" exists but is not valid postgres data directory.\n"),
 						data_dir);
 				return true;
@@ -1649,10 +1649,10 @@ WriteRecoveryConf(PQExpBuffer contents)
 
 	sprintf(filename, "%s/recovery.conf", data_dir);
 
-	cf = fopen(filename, "w");
+	cf = fopen(filename, "a");
 	if (cf == NULL)
 	{
-		die(_("%s: could not create file \"%s\": %s\n"), progname, filename, strerror(errno));
+		die(_("%s: could not open/create file \"%s\": %s\n"), progname, filename, strerror(errno));
 	}
 
 	if (fwrite(contents->data, contents->len, 1, cf) != 1)
@@ -1906,7 +1906,7 @@ file_exists(const char *path)
 }
 
 static bool
-is_pg_dir(const char *path)
+path_file_exists(const char *path, const char *filename)
 {
 	struct stat statbuf;
 	char		version_file[MAXPGPATH];
@@ -1914,7 +1914,7 @@ is_pg_dir(const char *path)
 	if (stat(path, &statbuf) != 0)
 		return false;
 
-	snprintf(version_file, MAXPGPATH, "%s/PG_VERSION", data_dir);
+	snprintf(version_file, MAXPGPATH, "%s/%s", data_dir, filename);
 	if (stat(version_file, &statbuf) != 0 && errno == ENOENT)
 	{
 		return false;
@@ -1938,6 +1938,10 @@ copy_file(char *fromfile, char *tofile)
 #define COPY_BUF_SIZE (8 * BLCKSZ)
 
 	buffer = malloc(COPY_BUF_SIZE);
+
+	/* basic sanity check for same file; doesn't try to notice links */
+	if (strcmp(fromfile, tofile) == 0)
+		die(_("source and destination file are the same: %s"), fromfile);
 
 	/*
 	 * Open the files
