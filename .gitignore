@@ -75,3 +75,4 @@ lib*.pc
 # Packages
 bdr-*.asc
 bdr-*.md5
+/.pg_version
