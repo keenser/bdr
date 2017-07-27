@@ -131,9 +131,10 @@ sub initandstart_bdr_group {
 # Init and start node with BDR, create the test DB and install the BDR
 # extension.
 sub initandstart_node {
-    my ($node, $bdr_test_dbname) = @_;
+    my ($node, $bdr_test_dbname, %kwopts) = @_;
 
-    $node->init( hba_permit_replication => 1, allows_streaming => 1 );
+    $node->init( hba_permit_replication => 1, allows_streaming => 1,
+				 %{$kwopts{extra_init_opts}//{}} );
     bdr_update_postgresql_conf( $node );
     $node->start;
     _create_db_and_exts( $node, $bdr_test_dbname );
