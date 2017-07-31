@@ -15,6 +15,30 @@
   See also: <xref linkend="upgrade">.
  </para>
 
+ <sect1 id="release-2.0.3">
+  <title>Release 2.0.3</title>
+
+  <para><emphasis>Mon Jul 31, 2017</></>
+
+  <para>
+   BDR 2.0.3 is a maintenance release for the 2.0 series
+  </para>
+
+  <para>
+   Fixes and improvements:
+   <itemizedlist>
+    <listitem><para>Permit <literal>CREATE INDEX CONCURRENTLY</literal> and <literal>DROP INDEX CONCURRENTLY</literal> as raw DDL when <varname>bdr.skip_ddl_replication = on</varname> is set. It is still not accepted via <function>bdr.bdr_replicate_ddl_command</function>.</></>
+    <listitem><para>Fix an infinite loop that could occur during cancellation of write-locks (looping in <function>BackendIdGetProc</>)</></>
+    <listitem><para>Fix shmem detach when workers are paused</></>
+    <listitem><para>Support and document <application>bdr_init_copy</> on a base backup pre-copied by rsync or other tools</></>
+    <listitem><para>Ensure that <application>bdr_init_copy</application> properly respects a pre-existing <filename>recovery.conf</filename></></>
+    <listitem><para>Expand <application>bdr_init_copy</application> regression tests</></>
+    <listitem><para>Improve error message for "tuple natts mismatch" to identify affected table, ec</></>
+   </itemizedlist>
+  </para>
+
+ </sect1>
+
  <sect1 id="release-2.0.2">
   <title>Release 2.0.2</title>
 
