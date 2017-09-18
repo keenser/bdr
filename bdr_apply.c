@@ -339,6 +339,7 @@ process_remote_begin(StringInfo s)
 		cbarg.suppress_output = true;
 		elog(LOG, "TRACE: %s", si.data);
 		cbarg.suppress_output = false;
+		pfree(si.data);
 	}
 
 	/* don't want the overhead otherwise */
@@ -414,6 +415,7 @@ process_remote_commit(StringInfo s)
 		cbarg.suppress_output = true;
 		elog(LOG, "TRACE: %s", si.data);
 		cbarg.suppress_output = false;
+		pfree(si.data);
 	}
 
 	Assert(committime == replorigin_session_origin_timestamp);
@@ -565,6 +567,7 @@ process_remote_insert(StringInfo s)
 		cbarg.suppress_output = true;
 		elog(LOG, "TRACE: %s", si.data);
 		cbarg.suppress_output = false;
+		pfree(si.data);
 	}
 
 	action = pq_getmsgbyte(s);
@@ -851,6 +854,7 @@ process_remote_update(StringInfo s)
 		cbarg.suppress_output = true;
 		elog(LOG, "TRACE: %s", si.data);
 		cbarg.suppress_output = false;
+		pfree(si.data);
 	}
 
 	action = pq_getmsgbyte(s);
@@ -1108,6 +1112,7 @@ process_remote_delete(StringInfo s)
 		cbarg.suppress_output = true;
 		elog(LOG, "TRACE: %s", si.data);
 		cbarg.suppress_output = false;
+		pfree(si.data);
 	}
 
 	action = pq_getmsgbyte(s);
@@ -1899,6 +1904,7 @@ process_queued_drop(HeapTuple cmdtup)
 		initStringInfo(&si);
 		format_drop_objectlist(&si, addresses);
 		elog(LOG, "TRACE: QUEUED_DROP: %s", si.data);
+		pfree(si.data);
 	}
 
 	errcallback.callback = queued_drop_error_callback;
