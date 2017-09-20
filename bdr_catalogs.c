@@ -70,7 +70,7 @@ GetSysCacheOidError(int cacheId,
 	GetSysCacheOidError(cacheId, key1, key2, 0, 0)
 
 /*
- * Get the bdr.bdr_nodes status value for the specififed node from the local
+ * Get the bdr.bdr_nodes status value for the specified node from the local
  * bdr.bdr_nodes table via SPI.
  *
  * Returns the status value, or '\0' if no such row exists.

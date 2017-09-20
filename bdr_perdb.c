@@ -823,7 +823,7 @@ bdr_perdb_worker_main(Datum main_arg)
 	bdr_saved_resowner = CurrentResourceOwner;
 
 	/*
-	 * It's necessary to acquire a a lock here so that a concurrent
+	 * It's necessary to acquire a lock here so that a concurrent
 	 * bdr_perdb_xact_callback can't try to set our latch at the same
 	 * time as we write to it.
 	 *

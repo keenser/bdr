@@ -2283,7 +2283,7 @@ bdr_send_feedback(PGconn *conn, XLogRecPtr recvpos, int64 now, bool force)
  * abs_timestamp_difference -- convert the difference between two timestamps
  *		into integer seconds and microseconds
  *
- * The result is always the absolute (pozitive difference), so the order
+ * The result is always the absolute (positive difference), so the order
  * of input is not important.
  *
  * If either input is not finite, we return zeroes.

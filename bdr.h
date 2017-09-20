@@ -384,7 +384,7 @@ static const char * const bdr_default_apply_connection_options =
 
 /*
  * Header for the shared memory segment ref'd by the BdrWorkerCtl ptr,
- * containing bdr_max_workers entries of BdrWorkerCon .
+ * containing bdr_max_workers BdrWorkerControl entries.
  */
 typedef struct BdrWorkerControl
 {
