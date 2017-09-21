@@ -267,7 +267,7 @@ bdr_create_conflict_handler(PG_FUNCTION_ARGS)
 	{
 		/*
 		 * Re-use the SPI arguments from creating the handler and let Pg handle quoting
-		 * with format(..) so we don't have to dance with stringifcation etc.
+		 * with format(..) so we don't have to dance with stringification etc.
 		 */
 		const char * const insert_query =
 			"INSERT INTO bdr.bdr_queued_commands (lsn, queued_at, perpetrator, command_tag, command)\n"

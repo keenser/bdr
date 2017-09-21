@@ -535,7 +535,7 @@ bdr_sequence_xact_callback(XactEvent event, void *arg)
  * Schedule a wakeup of all sequencer workers, as soon as this transaction
  * commits.
  *
- * This is e.g. useful when a new sequnece is created, and the voting process
+ * This is e.g. useful when a new sequence is created, and the voting process
  * should start immediately.
  *
  * NB: There's a window between the commit and this callback in which this

@@ -1347,8 +1347,8 @@ bdr_conflict_last_update_wins(RepOriginId local_node_id,
  *
  * User-defined conflict triggers get invoked here.
  *
- * perform_update, log_update is set to true if the update should be performed
- * and logged respectively
+ * perform_update and log_update are set to true if the update should be
+ * performed and logged, respectively
  *
  * resolution is set to indicate how the conflict was resolved if log_update
  * is true. Its value is undefined if log_update is false.
