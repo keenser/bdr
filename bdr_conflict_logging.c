@@ -617,30 +617,14 @@ bdr_conflict_log_serverlog(BdrApplyConflict *conflict)
 
 
 /*
- * Log a BDR apply conflict to the bdr.bdr_conflict_history table and/or
+ * Allocate a BdrApplyConflict object and fill it with the given conflict
+ * details, plus additional current system state (including current xid).
+ *
+ * This can be used to log a conflict, either to bdr.bdr_conflict_history or to
  * system log.
  *
- * If a transaction is in progress, the current transaction is used, in which
- * case the write is lost if that transaction subsequently aborts. If no
- * transaction is already open the caller must open one and commit it after
- * calling.
- *
- * Any open aborted transaction must be rolled back before calling.
- *
- * If apply_error is passed then this call is because of an unhandled error. In
- * this case the passed object_schema and object_name are ignored in favour of
- * those in the ErrorData struct and all the error_ fields are populated from
- * the ErrorData struct.
- *
- * Any palloc'd or copied values passed must be freed by the caller after
- * bdr_conflict_log returns. It won't retain references to any values and won't
- * free any of the values its self.
- *
- * The origin id - i.e. the id of the node the local tuple was first created
- * on, in case the local tuple was originally replicated from another node -
- * may be obtained with TransactionIdGetCommitTsData on the xmin of the
- * TupleTableSlot for the tuple. It isn't done here because the caller
- * frequently already has the node id to hand.
+ * Any memory allocated is in conflict_log_context; caller is responsible for
+ * releasing it afterwards.
  */
 BdrApplyConflict *
 bdr_make_apply_conflict(BdrConflictType conflict_type,
