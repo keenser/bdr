@@ -677,12 +677,8 @@ bdr_conflict_handlers_resolve(BDRRelation * rel, const HeapTuple local,
 {
 	size_t		i;
 	Datum		retval;
-	HeapTuple	copy_local = NULL,
-				copy_remote = NULL;
-
 	FunctionCallInfoData fcinfo;
 	FmgrInfo	finfo;
-
 	HeapTuple	fun_tup;
 	HeapTupleData result_tup;
 	HeapTupleHeader tup_header;
@@ -716,15 +712,8 @@ bdr_conflict_handlers_resolve(BDRRelation * rel, const HeapTuple local,
 
 		if (local != NULL)
 		{
-			/* FIXME: use facilities from 3f8c8e3c61ce once rebased again. */
-			copy_local = heap_copytuple(local);
-
-			HeapTupleHeaderSetDatumLength(copy_local->t_data,
-										  copy_local->t_len);
-			HeapTupleHeaderSetTypeId(copy_local->t_data,
-									 RelationGetDescr(rel->rel)->tdtypeid);
-
-			fcinfo.arg[0] = HeapTupleGetDatum(copy_local);
+			fcinfo.arg[0] =
+				heap_copy_tuple_as_datum(local, RelationGetDescr(rel->rel));
 			fcinfo.argnull[0] = false;
 		}
 		else
@@ -732,15 +721,8 @@ bdr_conflict_handlers_resolve(BDRRelation * rel, const HeapTuple local,
 
 		if (remote != NULL)
 		{
-			/* FIXME: use facilities from 3f8c8e3c61ce once rebased again. */
-			copy_remote = heap_copytuple(remote);
-
-			HeapTupleHeaderSetDatumLength(copy_remote->t_data,
-										  copy_remote->t_len);
-			HeapTupleHeaderSetTypeId(copy_remote->t_data,
-									 RelationGetDescr(rel->rel)->tdtypeid);
-
-			fcinfo.arg[1] = HeapTupleGetDatum(copy_remote);
+			fcinfo.arg[1] =
+				heap_copy_tuple_as_datum(remote, RelationGetDescr(rel->rel));
 			fcinfo.argnull[1] = false;
 		}
 		else
@@ -752,10 +734,10 @@ bdr_conflict_handlers_resolve(BDRRelation * rel, const HeapTuple local,
 
 		retval = FunctionCallInvoke(&fcinfo);
 
-		if (copy_local)
-			heap_freetuple(copy_local);
-		if (copy_remote)
-			heap_freetuple(copy_remote);
+		if (!fcinfo.argnull[0])
+			heap_freetuple((HeapTuple) DatumGetPointer(fcinfo.arg[0]));
+		if (!fcinfo.argnull[1])
+			heap_freetuple((HeapTuple) DatumGetPointer(fcinfo.arg[1]));
 
 		if (fcinfo.isnull)
 			elog(ERROR, "handler return value is NULL");
