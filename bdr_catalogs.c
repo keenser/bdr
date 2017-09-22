@@ -402,8 +402,8 @@ bdr_fetch_sysid_via_node_id_ifexists(RepOriginId node_id, BDRNodeId *node, bool 
 		{
 			ereport(ERROR,
 					(errmsg("lookup failed for replication identifier %u", node_id),
-					 errmsg("Replication identifier %u exists but is owned by another BDR node in the same PostgreSQL instance, with dboid %u. Current node oid is %u.",
-					 		node_id, local_dboid, MyDatabaseId)));
+					 errdetail("Replication identifier %u exists but is owned by another BDR node in the same PostgreSQL instance, with dboid %u. Current node oid is %u.",
+							   node_id, local_dboid, MyDatabaseId)));
 		}
 	}
 	return true;
