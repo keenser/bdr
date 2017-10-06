@@ -159,7 +159,9 @@ bdr_validate_replication_set_name(const char *name,
 		ereport(ERROR,
 				(errcode(ERRCODE_NAME_TOO_LONG),
 				 errmsg("replication set name \"%s\" is reserved",
-						name)));
+						name),
+				 errhint("To reset a relation's replication sets to defaults, use  bdr.table_set_replication_sets('relation_name', NULL)")
+				 ));
 	}
 }
 

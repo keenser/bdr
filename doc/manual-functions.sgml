@@ -574,7 +574,9 @@
         sets does <emphasis>not</emphasis> cause the table to be synchronized
         to nodes that will newly start receiving changes to the table, nor
         does it cause it to be emptied on nodes that will newly stop receiving
-        changes. See <xref linkend="replication-sets-concepts">.
+        changes. See <xref linkend="replication-sets-concepts">. Pass
+	<literal>NULL</literal> (not the empty array) as the replication sets
+	to restore a table's replication sets to defaults.
        </entry>
       </row>
 
