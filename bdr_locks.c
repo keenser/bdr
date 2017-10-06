@@ -566,7 +566,18 @@ bdr_locks_startup(void)
 						  values, isnull);
 
 		/* lookup the lock owner's node id */
-		state = TextDatumGetCString(values[9]);
+		if (isnull[9])
+			/*
+			 * A bug in BDR prior to 2.0.4 could leave this null
+			 * when it should really be in catchup mode.
+			 */
+		{
+			elog(WARNING, "fixing up bad DDL lock state, should be 'catchup' not NULL");
+			state = "catchup";
+		}
+		else
+			state = TextDatumGetCString(values[9]);
+
 		if (sscanf(TextDatumGetCString(values[1]), UINT64_FORMAT, &locker_id.sysid) != 1)
 			elog(ERROR, "could not parse sysid %s",
 				 TextDatumGetCString(values[1]));
@@ -1483,7 +1494,7 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 			/* lock_type column */
 			values[0] = CStringGetTextDatum(lock_name);
 			/* lock state column */
-			isnull[9] = true;
+			isnull[9] = false;
 			values[9] = PointerGetDatum(cstring_to_text("catchup"));
 
 			newtuple = heap_form_tuple(RelationGetDescr(rel),
@@ -1967,6 +1978,7 @@ bdr_send_confirm_lock(void)
 		heap_deform_tuple(tuple, RelationGetDescr(rel),
 						  values, isnull);
 		/* status column */
+		isnull[9] = false;
 		values[9] = CStringGetTextDatum("acquired");
 
 		newtuple = heap_form_tuple(RelationGetDescr(rel),
