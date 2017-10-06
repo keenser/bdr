@@ -269,23 +269,37 @@
        </entry>
        <entry>void</entry>
        <entry>
-        Execute the <acronym>SQL</acronym> (usually <acronym>DDL</acronym>)
-        <replaceable>cmd</replaceable> on the local node and queue it for
-        extension on all peer nodes. The same limitations apply to this
-        function as to DDL run directly
-        by the user, except that DDL not normally replicated by &bdr;
-        will be replicated if run with this function; see
-        <xref linkend="ddl-replication">. References to objects in DDL
-        must be fully schema-qualified (e.g. <literal>public.mytable</literal>
-        not just <literal>mytable</literal>), otherwise the error <literal>no
-        schema has been selected to create in</literal> will be emitted.
-        Additionally, this function <emphasis>does not acquire the global
-        DDL lock</emphasis> so care must be taken to ensure that concurrent
-        DDL is not run on multiple nodes. <emphasis>Do not use this to
-        enqueue <literal>ALTER TABLE</literal>, <literal>DROP TABLE</literal>
-        etc on a &bdr; system</emphasis> as committed but not yet applied
-        changes from other nodes might fail to apply after the change,
-        breaking replication.
+        <para>
+         Execute the <acronym>SQL</acronym> (usually <acronym>DDL</acronym>)
+         <replaceable>cmd</replaceable> on the local node and queue it for
+         extension on all peer nodes. The same limitations apply to this
+         function as to DDL run directly
+         by the user, except that DDL not normally replicated by &bdr;
+         will be replicated if run with this function; see
+         <xref linkend="ddl-replication">.
+        </para>
+        <para>
+         References to objects in DDL must be fully schema-qualified (e.g.
+         <literal>public.mytable</literal> not just
+         <literal>mytable</literal>), otherwise the error <literal>no schema
+         has been selected to create in</literal> will be emitted.
+         Alternately, it is safe to prefix the DDL command block with
+         <literal>SET LOCAL search_path = 'public';</literal> or similar, then
+         use unqualified names.
+        </para>
+        <para>
+         BDR disallows DML (<literal>INSERT</literal>, <literal>UPDATE</literal>
+         and <literal>DELETE</literal>) within
+         <function>bdr.bdr_replicate_ddl_command</function>. That's because their
+         effects would get replicated twice - once as a statement, and once as
+         rows. Possibly with different or conflicting results. If intermixed
+         with DDL you can also break replication completely.
+        </para>
+        <para>
+         Wrap individual DDL commands in
+         <function>bdr.bdr_replicate_ddl_command</function>, rather than entire
+         scripts.
+        </para>
        </entry>
       </row>
 

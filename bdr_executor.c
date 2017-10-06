@@ -462,6 +462,40 @@ BdrExecutorStart(QueryDesc *queryDesc, int eflags)
 	/* check for concurrent global DDL locks */
 	bdr_locks_check_dml();
 
+	/*
+	 * Are we in bdr.replicate_ddl_command? If so, it's not safe to do DML,
+	 * since this will basically do statement based replication that'll mess up
+	 * volatile functions etc. If we skipped replicating it as rows and just
+	 * replicated statements, we'd get wrong sequences and so on.
+	 *
+	 * We can't just ignore the DML and leave it in the command string, then
+	 * replicate its effects with rows, either. Otherwise DDL like this would
+	 * break:
+	 *
+	 *     bdr.replicate_ddl_command($$
+	 *       ALTER TABLE foo ADD COLUMN bar ...;
+	 *       UPDATE foo SET bar = baz WHERE ...;
+	 *       ALTER TABLE foo DROP COLUMN baz;
+	 *     $$);
+	 *
+	 * ... because we'd apply the DROP COLUMN before we replicated
+	 * the rows, since we execute a DDL string as a single operation. Then
+	 * row apply would fail because the incoming rows would have data for
+	 * dropped column 'baz'.
+	 */
+	if (in_bdr_replicate_ddl_command)
+	{
+		if (queryDesc->operation == CMD_INSERT
+		    || queryDesc->operation == CMD_UPDATE
+			|| queryDesc->operation == CMD_DELETE)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("row-data-modifying statements INSERT, UPDATE and DELETE are not permitted inside bdr.replicate_ddl_command"),
+					 errhint("Split up scripts, putting DDL in bdr.replicate_ddl_command and DML as normal statements")));
+		}
+	}
+
 	/* plain INSERTs are ok beyond this point if node is not read-only */
 	if (queryDesc->operation == CMD_INSERT &&
 		!plannedstmt->hasModifyingCTE && !read_only_node)

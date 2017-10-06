@@ -345,6 +345,7 @@ REGRESSCHECKS= \
 	dml_contrib \
 	dml_delete_pk \
 	dml_extended \
+	dml_replicate_ddl_command \
 	dml_missing_pk \
 	dml_toasted \
 	$(SEQTESTS) \
