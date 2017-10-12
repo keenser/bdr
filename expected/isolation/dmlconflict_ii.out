@@ -12,7 +12,7 @@ pg_xlog_wait_remote_apply
 step s1i: INSERT INTO test_dmlconflict VALUES('x', 1, 'foo');
 step s2i: INSERT INTO test_dmlconflict VALUES('y', 1, 'bar');
 step s3i: INSERT INTO test_dmlconflict VALUES('z', 1, 'baz');
-step s1w: SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+step s1w: SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 pg_xlog_wait_remote_apply
 
                
@@ -21,7 +21,7 @@ pg_xlog_wait_remote_apply
                
                
                
-step s2w: SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+step s2w: SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 pg_xlog_wait_remote_apply
 
                
@@ -30,7 +30,7 @@ pg_xlog_wait_remote_apply
                
                
                
-step s3w: SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+step s3w: SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 pg_xlog_wait_remote_apply
 
                

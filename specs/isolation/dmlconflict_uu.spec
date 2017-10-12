@@ -9,7 +9,7 @@ setup
 	CREATE TABLE test_dmlconflict(a text, b int primary key, c text);
 	INSERT INTO test_dmlconflict VALUES('x', 1, 'foo');
 	COMMIT;
-	SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+	SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 }
 
 teardown
@@ -23,7 +23,7 @@ session "snode1"
 connection "node1"
 setup { TRUNCATE bdr.bdr_conflict_history; }
 step "s1i" { UPDATE test_dmlconflict SET a = 'x', b = '1', c = 'foo'; }
-step "s1w" { SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication; }
+step "s1w" { SELECT bdr.wait_slot_confirm_lsn(NULL,NULL); }
 step "s1s" { SELECT * FROM test_dmlconflict; }
 step "s1h" { SELECT object_schema, object_name, conflict_type, conflict_resolution, local_tuple, remote_tuple, error_sqlstate FROM bdr.bdr_conflict_history ORDER BY conflict_id; }
 
@@ -31,7 +31,7 @@ session "snode2"
 connection "node2"
 setup { TRUNCATE bdr.bdr_conflict_history; }
 step "s2i" { UPDATE test_dmlconflict SET a = 'y', b = '1', c = 'bar'; }
-step "s2w" { SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication; }
+step "s2w" { SELECT bdr.wait_slot_confirm_lsn(NULL,NULL); }
 step "s2s" { SELECT * FROM test_dmlconflict; }
 step "s2h" { SELECT object_schema, object_name, conflict_type, conflict_resolution, local_tuple, remote_tuple, error_sqlstate FROM bdr.bdr_conflict_history ORDER BY conflict_id; }
 
@@ -39,7 +39,7 @@ session "snode3"
 connection "node3"
 setup { TRUNCATE bdr.bdr_conflict_history; }
 step "s3i" { UPDATE test_dmlconflict SET a = 'y', b = '1', c = 'baz'; }
-step "s3w" { SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication; }
+step "s3w" { SELECT bdr.wait_slot_confirm_lsn(NULL,NULL); }
 step "s3s" { SELECT * FROM test_dmlconflict; }
 step "s3h" { SELECT object_schema, object_name, conflict_type, conflict_resolution, local_tuple, remote_tuple, error_sqlstate FROM bdr.bdr_conflict_history ORDER BY conflict_id; }
 

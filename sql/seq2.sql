@@ -57,7 +57,7 @@ SELECT bdr.global_seq_nextval_test('dummy_seq2'::regclass, '530605914245317'::bi
 -- So we'll see the same stop-point
 SELECT last_value FROM dummy_seq2;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c postgres
 
@@ -77,7 +77,7 @@ SELECT last_value FROM dummy_seq2;
 
 SELECT count(id) FROM seqvalues;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c regression
 

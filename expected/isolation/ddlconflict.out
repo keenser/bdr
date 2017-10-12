@@ -10,7 +10,7 @@ ERROR:  database is locked against ddl by another node
 step s1c: COMMIT;
 step s2c: COMMIT;
 step s2dt: DROP TABLE bdr_ddl_conflict_a;
-step s1wait: SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+step s1wait: SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 pg_xlog_wait_remote_apply
 
                
@@ -19,7 +19,7 @@ pg_xlog_wait_remote_apply
                
                
                
-step s2wait: SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication; select * from pg_sleep(1);
+step s2wait: SELECT bdr.wait_slot_confirm_lsn(NULL,NULL); select * from pg_sleep(1);
 pg_xlog_wait_remote_apply
 
                

@@ -13,21 +13,21 @@ GRANT SELECT, INSERT ON grant_test.test_tbl TO nonsuper WITH GRANT OPTION;
 GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON grant_test.test_view TO nonsuper;
 GRANT USAGE, UPDATE ON grant_test.test_tbl_a_seq TO nonsuper;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \dp grant_test.*
 \c postgres
 \dp grant_test.*
 
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA grant_test FROM PUBLIC, nonsuper;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \dp grant_test.*
 \c regression
 \dp grant_test.*
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA grant_test TO nonsuper WITH GRANT OPTION;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \dp grant_test.*
 \c postgres
 \dp grant_test.*
@@ -35,7 +35,7 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_r
 REVOKE TRIGGER, INSERT, UPDATE, DELETE, REFERENCES, TRUNCATE ON grant_test.test_view FROM nonsuper;
 REVOKE ALL PRIVILEGES ON grant_test.test_tbl_a_seq FROM nonsuper;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \dp grant_test.*
 \c regression
 \dp grant_test.*
@@ -44,7 +44,7 @@ GRANT EXECUTE ON FUNCTION grant_test.test_func(int) TO nonsuper;
 GRANT USAGE ON TYPE grant_test.test_type TO nonsuper;
 GRANT ALL PRIVILEGES ON DOMAIN grant_test.test_domain TO nonsuper WITH GRANT OPTION;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 SELECT proacl FROM pg_proc WHERE oid = 'grant_test.test_func(int)'::regprocedure;
 SELECT typacl FROM pg_type WHERE oid = 'grant_test.test_domain'::regtype;
 SELECT typacl FROM pg_type WHERE oid = 'grant_test.test_type'::regtype;
@@ -57,7 +57,7 @@ REVOKE ALL PRIVILEGES ON FUNCTION grant_test.test_func(int) FROM nonsuper;
 REVOKE ALL PRIVILEGES ON TYPE grant_test.test_type FROM nonsuper;
 REVOKE USAGE ON DOMAIN grant_test.test_domain FROM nonsuper;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 SELECT proacl FROM pg_proc WHERE oid = 'grant_test.test_func(int)'::regprocedure;
 SELECT typacl FROM pg_type WHERE oid = 'grant_test.test_domain'::regtype;
 SELECT typacl FROM pg_type WHERE oid = 'grant_test.test_type'::regtype;

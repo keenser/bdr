@@ -54,7 +54,7 @@ step "wait"
 		-- OK, all nodes seen, now we wait for catchup on them all.
 		target_lsn := pg_current_xlog_location();
 		RAISE NOTICE 'Found expected % nodes, waiting for xlog catchup to %', 6, target_lsn;
-		PERFORM pg_xlog_wait_remote_apply( target_lsn, 0 );
+		PERFORM bdr.wait_slot_confirm_lsn(NULL, NULL);
 		RAISE NOTICE 'Catchup to LSN completed';
 	END;
 	$$;

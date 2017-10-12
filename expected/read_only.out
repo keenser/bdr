@@ -17,12 +17,11 @@ SELECT bdr.bdr_node_set_read_only(node_name, true) FROM bdr.bdr_nodes;
  
 (2 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 -- errors
 CREATE TABLE readonly_test_shoulderror(a int);
@@ -124,12 +123,11 @@ SELECT bdr.bdr_node_set_read_only(node_name, false) FROM bdr.bdr_nodes;
  
 (2 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 -- cleanup
 SELECT bdr.bdr_replicate_ddl_command($$

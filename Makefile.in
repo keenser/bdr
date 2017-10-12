@@ -123,7 +123,7 @@ DDLTESTS := \
 SEQTESTS := dml_sequence
 else
 OBJS += bdr_seq_stub.o
-REGRESS_COMPAT := compat96
+REGRESS_COMPAT := 
 # Can't run ddl_sequence on 9.6
 # DDL disabled on 9.6 for now
 #DDLTESTS := \

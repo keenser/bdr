@@ -51,7 +51,7 @@ WHERE (n.node_sysid, n.node_timeline, n.node_dboid) != bdr.bdr_get_local_nodeid(
 INSERT INTO test_replication(id) VALUES (2);
 
 -- Create a situation where a commit will constantly fail to replay until skipped.
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c postgres
 SELECT id FROM test_replication ORDER BY id;
@@ -70,7 +70,7 @@ COMMIT;
 -- So should this
 INSERT INTO test_replication(id) VALUES (4);
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 -- break replication
 BEGIN;
@@ -127,7 +127,7 @@ COMMIT;
 -- make sure there are two workers, and wait for catchup.
 SELECT pg_sleep(12);
 SELECT count(*) FROM pg_stat_replication;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c postgres
 

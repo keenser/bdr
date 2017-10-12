@@ -32,7 +32,7 @@ INSERT INTO constraint_test(check_col) VALUES (2);
 -- Insert should succeed on upstream, fail on downstream
 INSERT INTO constraint_test(check_col) VALUES (1);
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 -- Getting a DDL lock should fail due to replay delay if
 -- apply is failing due to violated check constraint
@@ -41,7 +41,7 @@ SET LOCAL statement_timeout = '5s';
 CREATE TABLE fail_me(x integer);
 ROLLBACK;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 SELECT * FROM constraint_test;
 \c postgres
@@ -50,7 +50,7 @@ SELECT * FROM constraint_test;
 
 TRUNCATE TABLE constraint_test;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 
 ALTER TABLE constraint_test
@@ -87,7 +87,7 @@ ENABLE ALWAYS TRIGGER test_tg;
 ALTER TABLE constraint_test
 ENABLE ALWAYS TRIGGER constraint_test_tg;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 --
 -- If the trigger fires this will change the value to be different
@@ -96,7 +96,7 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
 --
 INSERT INTO constraint_test(check_col) VALUES (4);
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 SELECT * FROM constraint_test;
 \c postgres

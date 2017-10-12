@@ -1,6 +1,6 @@
 CREATE SEQUENCE bdr_test_seq USING bdr;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 DO $$
 BEGIN

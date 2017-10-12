@@ -19,7 +19,7 @@ session "s1"
 connection "node1"
 step "n1setup" { SET bdr.permit_ddl_locking = true; }
 step "n1read" { SELECT * FROM tst ORDER BY a; }
-step "n1sync" { SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication; }
+step "n1sync" { SELECT bdr.wait_slot_confirm_lsn(NULL,NULL); }
 step "n1s1" { INSERT INTO tst (a, b) VALUES (4, 'four'); }
 step "n1s2" { ALTER TABLE tst ADD COLUMN c TEXT; }
 step "n1s3" { INSERT INTO tst (a, b, c) VALUES (5, 'five', 'new'); }
@@ -35,7 +35,7 @@ step "n1s11" { COMMIT; }
 session "s2"
 connection "node2"
 step "n2setup" { SET bdr.permit_ddl_locking = true; SET statement_timeout = '5s'; }
-step "n2sync" { SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication; }
+step "n2sync" { SELECT bdr.wait_slot_confirm_lsn(NULL,NULL); }
 step "n2read" { SELECT * FROM tst ORDER BY a; }
 step "n2s1" { UPDATE tst SET c = 'changed' WHERE a = 1; }
 step "n2s2" { ALTER TABLE tst ADD COLUMN c TEXT; }

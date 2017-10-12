@@ -11,12 +11,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE VIEW public.test_view AS SELEC
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_view
                        View "public.test_view"
@@ -53,12 +52,11 @@ SELECT * FROM test_view;
 (0 rows)
 
 INSERT INTO test_src_tbl (b,c) VALUES('a', '2014-01-01'), ('b', '2014-02-02'), ('c', '2014-03-03');
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * FROM test_view;
@@ -69,12 +67,11 @@ SELECT * FROM test_view;
 (2 rows)
 
 UPDATE test_view SET b = a || b;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM test_src_tbl;
@@ -99,12 +96,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER VIEW public.test_view  ALTER CO
 (1 row)
 
 INSERT INTO test_view(b) VALUES('y2k');
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * FROM test_src_tbl;
@@ -130,21 +126,19 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER VIEW public.test_view RENAME TO
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 INSERT INTO renamed_test_view(b) VALUES('d');
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * FROM test_src_tbl;
@@ -172,12 +166,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP VIEW public.renamed_test_view; $
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d renamed_test_view
 \c regression
@@ -196,12 +189,11 @@ NOTICE:  drop cascades to view public.test_view
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d test_view
 \c postgres

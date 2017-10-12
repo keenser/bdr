@@ -4,12 +4,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl_simple_c
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_create
                 Table "public.test_tbl_simple_create"
@@ -30,12 +29,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.test_tbl_simple_cre
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_create
 \c regression
@@ -46,12 +44,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE UNLOGGED TABLE public.test_tbl
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_unlogged_create
           Unlogged table "public.test_tbl_unlogged_create"
@@ -72,12 +69,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.test_tbl_unlogged_c
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_unlogged_create
 \c regression
@@ -88,12 +84,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl_simple_p
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_pk
                   Table "public.test_tbl_simple_pk"
@@ -118,12 +113,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.test_tbl_simple_pk;
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_pk
 \c regression
@@ -134,12 +128,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl_combined
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_combined_pk
                  Table "public.test_tbl_combined_pk"
@@ -166,12 +159,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.test_tbl_combined_p
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_combined_pk
 \c regression
@@ -182,12 +174,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl_serial(v
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial
                                              Table "public.test_tbl_serial"
@@ -208,12 +199,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.test_tbl_serial; $D
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial
 \c regression
@@ -224,12 +214,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl_serial(v
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial
                                              Table "public.test_tbl_serial"
@@ -250,12 +239,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl_serial_p
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial_pk
                                              Table "public.test_tbl_serial_pk"
@@ -280,12 +268,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE public.test_tbl_serial_pk;
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial_pk
 \c regression
@@ -296,12 +283,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_tbl_serial_c
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial_combined_pk
                                              Table "public.test_tbl_serial_combined_pk"
@@ -340,12 +326,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE INDEX test2_idx ON public.test
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -380,12 +365,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP INDEX public.test2_idx; $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -414,12 +398,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE INDEX test2_idx ON public.test
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -453,12 +436,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP INDEX CONCURRENTLY public.test2_
 ERROR:  DROP INDEX CONCURRENTLY is not supported in bdr.replicate_ddl_command
 HINT:  Run DROP INDEX CONCURRENTLY on each node individually with bdr.skip_ddl_replication set
 CONTEXT:  during DDL replay of ddl statement:  DROP INDEX CONCURRENTLY public.test2_idx; 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -488,12 +470,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE UNIQUE INDEX CONCURRENTLY test
 ERROR:  CREATE INDEX CONCURRENTLY is not supported in bdr.replicate_ddl_command
 HINT:  Run CREATE INDEX CONCURRENTLY on each node individually with bdr.skip_ddl_replication set
 CONTEXT:  during DDL replay of ddl statement:  CREATE UNIQUE INDEX CONCURRENTLY test2_idx ON public.test_tbl_create_index (lower(val2::text)); 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -535,12 +516,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_simple_creat
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_arrays_tbl
            Table "public.test_simple_create_with_arrays_tbl"
@@ -575,12 +555,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_simple_creat
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_enums_tbl
           Table "public.test_simple_create_with_enums_tbl"
@@ -609,12 +588,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TYPE public.test_t; $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_enums_tbl
 \dT test_t
@@ -643,12 +621,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE TABLE public.test_simple_creat
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_composites_tbl
         Table "public.test_simple_create_with_composites_tbl"
@@ -677,12 +654,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TYPE public.test_t; $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_composites_tbl
 \dT test_t
@@ -744,12 +720,11 @@ NOTICE:  merging column "f1" with inherited definition
 (1 row)
 
 \set VERBOSITY default
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_inh_*
                          Table "public.test_tbl_inh_chld1"
@@ -838,12 +813,11 @@ $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_inh_parent
                          Table "public.test_tbl_inh_parent"
@@ -899,24 +873,22 @@ NOTICE:  drop cascades to 3 other objects
 (1 row)
 
 \set VERBOSITY default
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_inh_*
 \c regression
 \d+ test_tbl_inh_*
 CREATE TABLE test_tbl_exclude(val int PRIMARY KEY,EXCLUDE USING gist(id with =));
 ERROR:  EXCLUDE constraints are unsafe with BDR active
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_exclude
 \c postgres
@@ -993,12 +965,11 @@ Indexes:
     "tbl_showfillfactor_name_key" UNIQUE CONSTRAINT, btree (name) WITH (fillfactor='65')
 Options: fillfactor=75
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ tbl_showfillfactor
@@ -1053,12 +1024,11 @@ $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                          List of functions
@@ -1103,12 +1073,11 @@ $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                        List of functions
@@ -1162,12 +1131,11 @@ $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                             List of functions
@@ -1216,12 +1184,11 @@ $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                        List of functions
@@ -1273,12 +1240,11 @@ $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \do public.##
                                       List of operators
@@ -1365,12 +1331,11 @@ $DDL$);
 --------+------+---------------+----------------+-------------+-------------
 (0 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \do public.##

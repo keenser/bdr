@@ -6,7 +6,7 @@ CREATE TABLE public.concurrently_test (
 );
 $DDL$);
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \c postgres
 
 \d public.concurrently_test
@@ -41,7 +41,7 @@ RESET bdr.skip_ddl_replication;
 
 SELECT relname FROM pg_class WHERE relname IN ('named_index', 'concurrently_test_pkey') AND relkind = 'i' ORDER BY relname;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c regression
 
@@ -53,7 +53,7 @@ RESET bdr.skip_ddl_replication;
 
 SELECT relname FROM pg_class WHERE relname IN ('named_index', 'concurrently_test_pkey') AND relkind = 'i' ORDER BY relname;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c postgres
 
@@ -69,7 +69,7 @@ RESET bdr.skip_ddl_replication;
 
 SELECT relname FROM pg_class WHERE relname IN ('named_index', 'concurrently_test_pkey') AND relkind = 'i' ORDER BY relname;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c regression
 

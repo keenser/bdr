@@ -96,20 +96,20 @@ FOR i IN 1..10 LOOP
 	END IF;
 	PERFORM pg_sleep(1);
 END LOOP;
-PERFORM pg_xlog_wait_remote_apply(pg_current_xlog_location()::text, pid) FROM pg_stat_replication;
+PERFORM bdr.wait_slot_confirm_lsn(NULL,NULL);
 END;\$\$;
 SQL
 
 # initialize pgbench
 echo "Setting up pgbench schema on primary db"
 $BINDIR/pgbench  -q -i -s $SCALE -h $PRIMARY_HOST -p $PRIMARY_PORT $PRIMARY_DB  >>$SCRIPTDIR/bdr_pgbench_check.log 2>&1
-$BINDIR/psql -h $PRIMARY_HOST -p $PRIMARY_PORT $PRIMARY_DB -c "SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location()::text, pid) FROM pg_stat_replication;" > /dev/null
+$BINDIR/psql -h $PRIMARY_HOST -p $PRIMARY_PORT $PRIMARY_DB -c "SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);" > /dev/null
 if [ "$RUNMODE" = "parallel" ]; then
 	echo "Setting up pgbench schema on slave db"
 	$BINDIR/psql -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB -c "CREATE SCHEMA pgbench2; ALTER DATABASE $SLAVE_DB SET search_path=pgbench2,pg_catalog;" >>$SCRIPTDIR/bdr_pgbench_check.log 2>&1
-	$BINDIR/psql -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB -c "SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location()::text, pid) FROM pg_stat_replication;" > /dev/null
+	$BINDIR/psql -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB -c "SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);" > /dev/null
 	$BINDIR/pgbench -q -i -s $SCALE -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB >>$SCRIPTDIR/bdr_pgbench_check.log 2>&1
-	$BINDIR/psql -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB -c "SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location()::text, pid) FROM pg_stat_replication;" > /dev/null
+	$BINDIR/psql -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB -c "SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);" > /dev/null
 fi
 
 # run pgbench
@@ -139,8 +139,8 @@ for i in `seq 1 $NUM_RUNS`; do
 
 done
 
-$BINDIR/psql -h $PRIMARY_HOST -p $PRIMARY_PORT $PRIMARY_DB -c "SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location()::text, pid) FROM pg_stat_replication;" > /dev/null
-$BINDIR/psql -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB -c "SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location()::text, pid) FROM pg_stat_replication;" > /dev/null
+$BINDIR/psql -h $PRIMARY_HOST -p $PRIMARY_PORT $PRIMARY_DB -c "SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);" > /dev/null
+$BINDIR/psql -h $SLAVE_HOST -p $SLAVE_PORT $SLAVE_DB -c "SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);" > /dev/null
 
 SQL=$(cat <<EOF
 SET search_path=pg_catalog;

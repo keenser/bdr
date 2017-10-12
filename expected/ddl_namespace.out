@@ -9,9 +9,9 @@ CREATE SCHEMA test_schema_1
        );
 CREATE FUNCTION test_schema_1.abc_func() RETURNS void
        AS $$ BEGIN END; $$ LANGUAGE plpgsql;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -27,9 +27,9 @@ SELECT COUNT(*) FROM pg_class WHERE relnamespace =
 INSERT INTO test_schema_1.abc DEFAULT VALUES;
 INSERT INTO test_schema_1.abc DEFAULT VALUES;
 INSERT INTO test_schema_1.abc DEFAULT VALUES;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -52,9 +52,9 @@ SELECT * FROM test_schema_1.abc_view;
 (3 rows)
 
 ALTER SCHEMA test_schema_1 RENAME TO test_schema_renamed;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -76,9 +76,9 @@ NOTICE:  drop cascades to 3 other objects
 DETAIL:  drop cascades to table test_schema_renamed.abc
 drop cascades to view test_schema_renamed.abc_view
 drop cascades to function test_schema_renamed.abc_func()
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)

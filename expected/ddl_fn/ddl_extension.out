@@ -18,12 +18,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE EXTENSION pg_trgm SCHEMA publi
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * from list_extension; 
@@ -39,12 +38,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP EXTENSION pg_trgm; $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * from list_extension; 
@@ -58,12 +56,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ CREATE EXTENSION IF NOT EXISTS pg_trg
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * from list_extension; 
@@ -82,12 +79,11 @@ NOTICE:  extension "pg_trgm" already exists, skipping
 (1 row)
 
 \set VERBOSITY default
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * from list_extension; 

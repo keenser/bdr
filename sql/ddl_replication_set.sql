@@ -8,7 +8,7 @@ CREATE TABLE "strange.schema-IS".sometbl_strangeschema();
 
 -- show initial replication sets
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \c regression
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
 
@@ -27,7 +27,7 @@ SELECT * FROM bdr.table_get_replication_sets('switcheroo');
 SELECT * FROM bdr.table_get_replication_sets('normalschema.sometbl_normalschema');
 SELECT * FROM bdr.table_get_replication_sets('"strange.schema-IS".sometbl_strangeschema');
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \c regression
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
 SELECT * FROM bdr.table_get_replication_sets('normalschema.sometbl_normalschema');
@@ -38,7 +38,7 @@ SELECT * FROM bdr.table_get_replication_sets('"strange.schema-IS".sometbl_strang
 -- configure a couple
 SELECT bdr.table_set_replication_sets('switcheroo', NULL);
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \c regression
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
 
@@ -58,7 +58,7 @@ DROP TABLE switcheroo;
 DROP TABLE normalschema.sometbl_normalschema;
 DROP TABLE "strange.schema-IS".sometbl_strangeschema;
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 /*
  * Now test whether sets properly control the replication of data.
@@ -91,7 +91,7 @@ SELECT bdr.table_set_replication_sets('settest_1', '{unknown-set,important,for-n
 INSERT INTO settest_1(data) VALUES ('should-replicate-via-for-node-2-and-important');
 
 SELECT * FROM settest_1 ORDER BY data;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \c regression
 SELECT * FROM settest_1 ORDER BY data;
 \c postgres
@@ -180,7 +180,7 @@ DELETE FROM settest_2
 WHERE data = 'repl-combined--insert-#2-then-delete';
 
 SELECT * FROM settest_2 ORDER BY data;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 \c regression
 SELECT * FROM settest_2 ORDER BY data;
 

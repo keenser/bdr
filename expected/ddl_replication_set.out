@@ -12,9 +12,9 @@ SELECT * FROM bdr.table_get_replication_sets('switcheroo');
  {default,all}
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -89,9 +89,9 @@ SELECT * FROM bdr.table_get_replication_sets('"strange.schema-IS".sometbl_strang
  {a,all}
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -130,9 +130,9 @@ SELECT * FROM bdr.table_get_replication_sets('switcheroo');
  {default,all}
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -186,9 +186,9 @@ PL/pgSQL function bdr.table_set_replication_sets(regclass,text[]) line 30 at PER
 DROP TABLE switcheroo;
 DROP TABLE normalschema.sometbl_normalschema;
 DROP TABLE "strange.schema-IS".sometbl_strangeschema;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -256,9 +256,9 @@ SELECT * FROM settest_1 ORDER BY data;
  should-replicate-via-for-node-2-even-though-unknown
 (7 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -373,9 +373,9 @@ SELECT * FROM settest_2 ORDER BY data;
  repl-update--insert-#4
 (8 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)

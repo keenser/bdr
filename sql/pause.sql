@@ -4,7 +4,7 @@ SELECT bdr.bdr_apply_is_paused();
 
 SELECT bdr.bdr_replicate_ddl_command('CREATE TABLE public.pause_test(x text primary key);');
 INSERT INTO pause_test(x) VALUES ('before pause');
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \cc postgres
 
@@ -42,7 +42,7 @@ INSERT INTO pause_test(x) VALUES ('after resume');
 -- resume to take effect well before then.
 BEGIN;
 SET LOCAL statement_timeout = '60s';
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 COMMIT;
 
 \cc postgres

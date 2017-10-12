@@ -37,12 +37,11 @@ SELECT * FROM bdr.table_get_replication_sets('switcheroo');
  {default,all}
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
@@ -114,12 +113,11 @@ SELECT * FROM bdr.table_get_replication_sets('"strange.schema-IS".sometbl_strang
  {a,all}
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
@@ -155,12 +153,11 @@ SELECT * FROM bdr.table_get_replication_sets('switcheroo');
  {default,all}
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM bdr.table_get_replication_sets('switcheroo');
@@ -226,12 +223,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TABLE "strange.schema-IS".sometb
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 /*
  * Now test whether sets properly control the replication of data.
@@ -301,12 +297,11 @@ SELECT * FROM settest_1 ORDER BY data;
  should-replicate-via-for-node-2-even-though-unknown
 (7 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM settest_1 ORDER BY data;
@@ -428,12 +423,11 @@ SELECT * FROM settest_2 ORDER BY data;
  repl-update--insert-#4
 (8 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM settest_2 ORDER BY data;

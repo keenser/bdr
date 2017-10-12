@@ -1,8 +1,8 @@
 CREATE TABLE test_tbl(pk int primary key, dropping_col1 text, dropping_col2 text);
 ALTER TABLE test_tbl ADD COLUMN col1 text;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -20,9 +20,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ADD COLUMN col2 text;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -45,9 +45,9 @@ ERROR:  ALTER TABLE ... ADD COLUMN ... DEFAULT may only affect UNLOGGED or TEMPO
 ALTER TABLE test_tbl ADD COLUMN serial_col_node1 SERIAL;
 ERROR:  ALTER TABLE ... ADD COLUMN ... DEFAULT may only affect UNLOGGED or TEMPORARY tables when BDR is active; test_tbl is a regular table
 ALTER TABLE test_tbl DROP COLUMN dropping_col1;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -65,9 +65,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl DROP COLUMN dropping_col2;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -84,9 +84,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col1 SET NOT NULL;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -103,9 +103,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col2 SET NOT NULL;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -122,9 +122,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col1 DROP NOT NULL;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -141,9 +141,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col2 DROP NOT NULL;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -160,9 +160,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col1 SET DEFAULT 'abc';
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -179,9 +179,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col2 SET DEFAULT 'abc';
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -198,9 +198,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col1 DROP DEFAULT;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -217,9 +217,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ALTER COLUMN col2 DROP DEFAULT;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -236,9 +236,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl ADD CONSTRAINT test_const CHECK (true);
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -257,9 +257,9 @@ Check constraints:
     "test_const" CHECK (true)
 
 ALTER TABLE test_tbl ADD CONSTRAINT test_const1 CHECK (true);
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -279,9 +279,9 @@ Check constraints:
     "test_const1" CHECK (true)
 
 ALTER TABLE test_tbl DROP CONSTRAINT test_const;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -300,9 +300,9 @@ Check constraints:
     "test_const1" CHECK (true)
 
 ALTER TABLE test_tbl DROP CONSTRAINT test_const1;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -321,9 +321,9 @@ Indexes:
 ALTER TABLE test_tbl ALTER COLUMN col1 SET NOT NULL;
 CREATE UNIQUE INDEX test_idx ON test_tbl(col1);
 ALTER TABLE test_tbl REPLICA IDENTITY USING INDEX test_idx;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -343,9 +343,9 @@ Indexes:
 ALTER TABLE test_tbl ALTER COLUMN col2 SET NOT NULL;
 CREATE UNIQUE INDEX test_idx1 ON test_tbl(col2);
 ALTER TABLE test_tbl REPLICA IDENTITY USING INDEX test_idx1;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -366,9 +366,9 @@ Indexes:
 ALTER TABLE test_tbl REPLICA IDENTITY DEFAULT;
 DROP INDEX test_idx;
 DROP INDEX test_idx1;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -386,9 +386,9 @@ Indexes:
 
 CREATE UNIQUE INDEX test_idx ON test_tbl(col1);
 ALTER TABLE test_tbl REPLICA IDENTITY USING INDEX test_idx;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -417,9 +417,9 @@ Indexes:
 
 CREATE USER test_user;
 ALTER TABLE test_tbl OWNER TO test_user;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -436,9 +436,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl RENAME COLUMN col1 TO foobar;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -476,9 +476,9 @@ Indexes:
     "test_tbl_pkey" PRIMARY KEY, btree (pk)
 
 ALTER TABLE test_tbl RENAME CONSTRAINT test_tbl_pkey TO test_ddl_pk;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -495,9 +495,9 @@ Indexes:
     "test_ddl_pk" PRIMARY KEY, btree (pk)
 
 DROP TABLE test_tbl;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -519,9 +519,9 @@ ALTER TABLE test_tbl ALTER COLUMN id SET STATISTICS 0;
 --------+---------+-----------+---------+--------------+-------------
  id     | integer |           | plain   | 0            | 
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -540,9 +540,9 @@ ALTER TABLE test_tbl ALTER COLUMN id SET STATISTICS -1;
 --------+---------+-----------+---------+--------------+-------------
  id     | integer |           | plain   |              | 
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -564,9 +564,9 @@ INSERT INTO test_inh_root(id, val1, val2)
 SELECT x, x::text, x%4 FROM generate_series(1,10) x;
 INSERT INTO test_inh_chld1(id, val1, val2, child1col)
 SELECT x, x::text, x%4+1, x*2 FROM generate_series(11,20) x;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -686,9 +686,9 @@ ALTER TABLE test_inh_root ADD CONSTRAINT idchk CHECK (id > 0);
 ALTER TABLE ONLY test_inh_chld1 ALTER COLUMN id SET DEFAULT 1;
 ALTER TABLE ONLY test_inh_root DROP CONSTRAINT idchk;
 RESET bdr.permit_unsafe_ddl_commands;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -864,9 +864,9 @@ SELECT * FROM test_inh_chld2;
 ----+------+------+-----------
 (0 rows)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)
@@ -910,9 +910,9 @@ SELECT * FROM test_inh_chld2;
 DELETE FROM test_inh_root WHERE val2 = 0;
 INSERT INTO test_inh_root(id, val1, val2) VALUES (200, 'root', 1);
 INSERT INTO test_inh_chld1(id, val1, val2, child1col) VALUES (200, 'child', 0, 0);
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
  
 (2 rows)

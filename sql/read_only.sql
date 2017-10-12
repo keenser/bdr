@@ -8,7 +8,7 @@ $$);
 
 -- set all nodes ro
 SELECT bdr.bdr_node_set_read_only(node_name, true) FROM bdr.bdr_nodes;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 -- errors
 CREATE TABLE readonly_test_shoulderror(a int);
@@ -83,7 +83,7 @@ SELECT * FROM cte;
 \c postgres
 -- set all nodes rw
 SELECT bdr.bdr_node_set_read_only(node_name, false) FROM bdr.bdr_nodes;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 -- cleanup
 SELECT bdr.bdr_replicate_ddl_command($$

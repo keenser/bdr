@@ -155,12 +155,11 @@ $DDL$);
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 -- We can't use \d+ here because tgisinternal triggers have names with the oid
 -- appended, and that varies run-to-run. Use a custom query.
@@ -187,12 +186,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TRIGGER test_trigger_fn_trg1 ON
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
         tgname        | tgenabled | tgisinternal 
@@ -217,12 +215,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TABLE public.test_trigger_table
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
         tgname        | tgenabled | tgisinternal 
@@ -247,12 +244,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TABLE public.test_trigger_table
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
         tgname        | tgenabled | tgisinternal 
@@ -277,12 +273,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TABLE public.test_trigger_table
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
         tgname        | tgenabled | tgisinternal 
@@ -307,12 +302,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TABLE public.test_trigger_table
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
         tgname        | tgenabled | tgisinternal 
@@ -337,12 +331,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TABLE public.test_trigger_table
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
         tgname        | tgenabled | tgisinternal 
@@ -367,12 +360,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ ALTER TABLE public.test_trigger_table
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
         tgname        | tgenabled | tgisinternal 
@@ -397,12 +389,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP TRIGGER test_trigger_fn_trg2 ON 
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT * FROM showtrigstate('test_trigger_table'::regclass);
        tgname        | tgenabled | tgisinternal 
@@ -437,12 +428,11 @@ SELECT bdr.bdr_replicate_ddl_command($DDL$ DROP FUNCTION public.test_trigger_fn(
  
 (1 row)
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), pid) FROM pg_stat_replication;
- pg_xlog_wait_remote_apply 
----------------------------
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
+ wait_slot_confirm_lsn 
+-----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_trigger_table
 \c postgres
