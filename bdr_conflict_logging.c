@@ -48,7 +48,7 @@ static Oid BdrConflictTypeOid = InvalidOid;
 static Oid BdrConflictResolutionOid = InvalidOid;
 static Oid BdrConflictHistorySeqId = InvalidOid;
 
-#define BDR_CONFLICT_HISTORY_COLS 34
+#define BDR_CONFLICT_HISTORY_COLS 35
 #define SYSID_DIGITS 33
 
 /* We want our own memory ctx to clean up easily & reliably */
@@ -541,6 +541,13 @@ bdr_conflict_log_table(BdrApplyConflict *conflict)
 		nulls[attno] = 1;
 	attno++;
 
+	/* 2.0.4 records the original local commit timestamp */
+	if (conflict->local_commit_time == 0)
+		nulls[attno] = 1;
+	else
+		values[attno] = TimestampTzGetDatum(conflict->local_commit_time);
+	attno++;
+
 	/* Make sure assignments match allocated tuple size */
 	Assert(attno == BDR_CONFLICT_HISTORY_COLS);
 
@@ -634,6 +641,7 @@ bdr_make_apply_conflict(BdrConflictType conflict_type,
 						TupleTableSlot *local_tuple,
 						RepOriginId local_tuple_origin_id,
 						TupleTableSlot *remote_tuple,
+						TimestampTz local_commit_ts,
 						ErrorData *apply_error)
 {
 	MemoryContext	old_context;
@@ -701,6 +709,8 @@ bdr_make_apply_conflict(BdrConflictType conflict_type,
 		/* InvalidRepOriginId is used for locally originated tuples */
 		bdr_make_my_nodeid(&conflict->local_tuple_origin_node);
 	}
+
+	conflict->local_commit_time = local_commit_ts;
 
 	if (remote_tuple != NULL && bdr_conflict_logging_include_tuples)
 	{

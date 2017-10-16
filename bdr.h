@@ -494,6 +494,7 @@ typedef struct BdrApplyConflict
 	Datum					local_tuple;    /* composite */
 	TransactionId			local_tuple_xmin;
 	BDRNodeId				local_tuple_origin_node; /* sysid 0 if unknown */
+	TimestampTz				local_commit_time;
 	bool					remote_tuple_null;
 	Datum					remote_tuple;   /* composite */
 	ErrorData			   *apply_error;
@@ -509,6 +510,7 @@ extern BdrApplyConflict * bdr_make_apply_conflict(BdrConflictType conflict_type,
 									struct TupleTableSlot *local_tuple,
 									RepOriginId local_tuple_origin_id,
 									struct TupleTableSlot *remote_tuple,
+									TimestampTz local_commit_ts,
 									struct ErrorData *apply_error);
 
 extern void bdr_conflict_log_serverlog(BdrApplyConflict *conflict);

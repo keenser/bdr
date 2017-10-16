@@ -697,7 +697,7 @@ process_remote_insert(StringInfo s)
 			apply_conflict = bdr_make_apply_conflict(
 				BdrConflictType_InsertInsert, resolution,
 				replication_origin_xid, rel, oldslot, local_node_id,
-				newslot, NULL /*no error*/);
+				newslot, local_ts, NULL /*no error*/);
 
 			bdr_conflict_log_serverlog(apply_conflict);
 
@@ -966,7 +966,7 @@ process_remote_update(StringInfo s)
 			apply_conflict = bdr_make_apply_conflict(
 				BdrConflictType_UpdateUpdate, resolution,
 				replication_origin_xid, rel, oldslot, local_node_id,
-				newslot, NULL /*no error*/);
+				newslot, local_ts, NULL /*no error*/);
 
 			bdr_conflict_log_serverlog(apply_conflict);
 
@@ -1034,7 +1034,7 @@ process_remote_update(StringInfo s)
 
 		apply_conflict = bdr_make_apply_conflict(
 			BdrConflictType_UpdateDelete, resolution, replication_origin_xid,
-			rel, NULL, InvalidRepOriginId, newslot, NULL /*no error*/);
+			rel, NULL, InvalidRepOriginId, newslot, 0, NULL /*no error*/);
 
 		bdr_conflict_log_serverlog(apply_conflict);
 
@@ -1221,7 +1221,7 @@ process_remote_delete(StringInfo s)
 			skip ? BdrConflictResolution_ConflictTriggerSkipChange :
 				   BdrConflictResolution_DefaultSkipChange,
 			replication_origin_xid,	rel, NULL, InvalidRepOriginId,
-			oldslot, NULL /*no error*/);
+			oldslot, 0, NULL /*no error*/);
 
 		bdr_conflict_log_serverlog(apply_conflict);
 		bdr_conflict_log_table(apply_conflict);
