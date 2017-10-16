@@ -61,7 +61,7 @@ bool bdr_permit_unsafe_commands = false;
 static void error_unsupported_command(const char *cmdtag);
 
 static int bdr_ddl_nestlevel = 0;
-static bool bdr_in_extension = false;
+bool bdr_in_extension = false;
 
 /*
 * Check the passed rangevar, locking it and looking it up in the cache

@@ -447,6 +447,7 @@ typedef struct BDRNodeInfo
 
 extern Oid bdr_lookup_relid(const char *relname, Oid schema_oid);
 
+extern bool bdr_in_extension;
 
 /* apply support */
 extern void bdr_fetch_sysid_via_node_id(RepOriginId node_id, BDRNodeId * out_nodeid);
