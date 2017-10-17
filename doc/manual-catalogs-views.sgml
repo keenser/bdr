@@ -495,7 +495,7 @@
       <entry><structfield>local_conflict_time</structfield></entry>
       <entry><type>timestamp with timezone</type></entry>
       <entry></entry>
-      <entry>The time the conflict was detected on the applying node.</entry>
+      <entry>The time the conflict was detected on the applying node. This is not the conflicting transaction's commit time; see <literal>local_commit_time</literal>.</entry>
      </row>
      <row>
       <entry><structfield>object_schema</structfield></entry>
@@ -670,6 +670,12 @@
       <entry><type>oid</type></entry>
       <entry></entry>
       <entry></entry>
+     </row>
+     <row>
+      <entry><structfield>local_commit_time</structfield></entry>
+      <entry><type>timestamp with timezone</type></entry>
+      <entry></entry>
+      <entry>The time the local transaction involved in this conflict committed.</entry>
      </row>
     </tbody>
    </tgroup>

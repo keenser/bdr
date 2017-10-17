@@ -15,6 +15,133 @@
   See also: <xref linkend="upgrade">.
  </para>
 
+ <sect1 id="release-2.0.4">
+  <title>Release 2.0.4</title>
+
+  <para><emphasis>Tue Oct 24, 2017</></>
+
+  <para>
+   Fixes and improvements:
+   <itemizedlist>
+    <listitem><para>Block use of DML in <literal>bdr.bdr_replicate_ddl_command</literal> and <link linkend="function-bdr-replicate-ddl-command">update docs</link></></>
+    <listitem><para>Fix memory leak when <literal>bdr.trace_replay = on</literal></></>
+    <listitem><para>Fix crash on startup when restarted during DDL lock catchup state</></>
+    <listitem><para>Add new <link linkend="function-bdr-wait-slot-confirm-lsn"><literal>bdr.wait_slot_confirm_lsn</literal></link> function for node synchronisation</></>
+    <listitem><para><link linkend="release-2.0.4-applyworker">Fix possible hang in apply worker</link></></>
+    <listitem><para>Track <structfield>local_commit_time</structfield> in <link linkend="catalog-bdr-conflict-history"><literal>bdr.bdr_conflict_history</literal></link></></>
+    <listitem><para>Fix <literal>apply_delay</literal> for remote commit timestamps that are in the local node's future due to clock skew</para></listitem>
+   </itemizedlist>
+  </para>
+
+  <sect2 id="release-2.0.4-dml">
+   <title>Block use of DML in <literal>bdr.bdr_replicate_ddl_command</literal></title>
+
+   <para>
+    BDR 2.0.4 now blocks use of DML in
+    <function>bdr.bdr_replicate_ddl_command</function> to guard against
+    operations that could cause inconsistent data between nodes or cause
+    replication to stop.
+   </para>
+
+   <para>
+    It's almost never correct to put DML in
+    <function>bdr.replicate_ddl_command</function>. At best you'll get
+    conflicts, if your DML <literal>UPDATE</literal>s or
+    <literal>DELETE</literal>s data in a table using only immutable
+    expressions.
+   </para>
+    
+   <para>
+    More likely you'll get duplicate data if you do <literal>INSERT</literal>s
+    with synthetic keys, because it gets replicated once as a statement and
+    again as a decoded row change. The two rows might be different if you use
+    sequences, volatile functions, etc.
+   </para>
+    
+   <para>
+    If your DML is mixed with DDL, you can break replication. For example:
+    <programlisting>
+    bdr.bdr_replicate_ddl_command($DDL$
+        ALTER TABLE t1 ADD COLUMN foo integer;
+        UPDATE t1 SET foo = bar;
+        ALTER TABLE t1 DROP COLUMN bar;
+    $DDL$);
+    </programlisting>
+    
+    will break replication with the error
+    
+    <programlisting>
+    ERROR: data for dropped column
+    </programlisting>
+    
+    because BDR applies the whole compound SQL statement string from
+    <function>bdr.bdr_replicate_ddl_command</function>. Then it decodes the <literal>UPDATE</literal>d rows,
+    and tries to send them to the downstream. But the downstream already
+    applied the whole SQL statement string... so the target column 'bar'
+    doesn't exist anymore.
+   </para>
+
+   <para>
+    Replication will then fail with an error like
+    <programlisting>
+    ERROR: 42P10: remote tuple has different column count to local table
+    DETAIL: Table "public"."test" has 15 columns on local node (...) vs 16 on remote node (...)
+    </programlisting>
+    or on older BDR versions:
+    <programlisting>
+    ERROR: XX000: tuple natts mismatch, 15 vs 16
+    </programlisting>
+   </para>
+    
+   <para>
+    There's no safe way to handle this. If we suppressed logical decoding of
+    rows generated during a <function>bdr.bdr_replicate_ddl_command</function>,
+    we'd introduce the issues seen in statement-based replication with volatile
+    functions etc instead. As if we were permitting full table rewrites.
+   </para>
+    
+   <para>
+    So 2.0.4 simply disallows DML in
+    <function>bdr.bdr_replicate_ddl_command</function>. It will now fail with a
+    message like:
+    <programlisting>
+    ERROR:  row-data-modifying statements INSERT, UPDATE and DELETE are not permitted inside bdr.replicate_ddl_command
+    HINT:  Split up scripts, putting DDL in bdr.replicate_ddl_command and DML as normal statements
+    </programlisting>
+   </para>
+  </sect2>
+
+  <sect2 id="release-2.0.4-applyworker">
+   <title>Fix possible hang in apply worker</title>
+
+   <para>
+    An apply worker could get stuck while releasing a "write" mode global DDL
+    lock, causing replication to stop and the slot on the other end to become
+    inactive. The stuck worker would not respond to
+    <literal>pg_terminate_backend</literal> or <literal>kill -TERM</literal>.
+    The other end would report a network error or walsender timeout.
+   </para>
+
+   <para>
+    Recovery required a PostgreSQL shutdown with <literal>pg_ctl -m immediate
+    stop</literal>, killing of the stuck worker with
+    <literal>SIGQUIT</literal> or <literal>SIGKILL</literal> then starting
+    PostgreSQL back up.
+   </para>
+
+   <para>
+    If the underlying conditions that caused this issue are triggered, BDR will
+    now emit a log message like
+    <programlisting>
+      WARNING: DDL LOCK TRACE: backend 1234 already registered as waiter for DDL lock release
+    </programlisting>
+    and prevent the problem.
+   </para>
+
+  </sect2>
+
+ </sect1>
+
  <sect1 id="release-2.0.3">
   <title>Release 2.0.3</title>
 
@@ -34,6 +161,10 @@
     <listitem><para>Ensure that <application>bdr_init_copy</application> properly respects a pre-existing <filename>recovery.conf</filename></></>
     <listitem><para>Expand <application>bdr_init_copy</application> regression tests</></>
     <listitem><para>Improve error message for "tuple natts mismatch" to identify affected table, ec</></>
+    <listitem><para></></>
+    <listitem><para></></>
+    <listitem><para></></>
+    <listitem><para></></>
    </itemizedlist>
   </para>
 
