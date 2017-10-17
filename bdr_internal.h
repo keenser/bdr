@@ -12,6 +12,7 @@
 #define BDR_INTERNAL_H
 
 #include <signal.h>
+#include "access/xlogdefs.h"
 
 #define EMPTY_REPLICATION_NAME ""
 
@@ -57,10 +58,6 @@ typedef enum BdrNodeStatus {
 #define BDR_NODE_STATUS_CREATING_OUTBOUND_SLOTS_S "'o'"
 #define BDR_NODE_STATUS_READY_S "'r'"
 #define BDR_NODE_STATUS_KILLED_S "'k'"
-
-#ifdef FRONTEND
-typedef uint32 TimeLineID;
-#endif
 
 /* Structure representing bdr_nodes record */
 typedef struct BDRNodeId
