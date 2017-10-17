@@ -18,6 +18,8 @@
 #include "storage/lock.h"
 #include "tcop/utility.h"
 
+#include "lib/ilist.h"
+
 #include "libpq-fe.h"
 
 #include "bdr_config.h"
@@ -357,6 +359,13 @@ typedef enum BdrConnectionsAttno {
 	BDR_CONN_REPLICATION_SETS = 10
 } BdrConnectionsAttno;
 
+typedef struct BdrFlushPosition
+{
+	dlist_node node;
+	XLogRecPtr local_end;
+	XLogRecPtr remote_end;
+} BdrFlushPosition;
+
 /* GUCs */
 extern int	bdr_default_apply_delay;
 extern int bdr_max_workers;
@@ -604,6 +613,7 @@ extern BDRNodeInfo * bdr_nodes_get_local_info(const BDRNodeId * const node);
 extern void bdr_bdr_node_free(BDRNodeInfo *node);
 extern void bdr_nodes_set_local_status(BdrNodeStatus status, BdrNodeStatus oldstatus);
 extern void bdr_nodes_set_local_attrs(BdrNodeStatus status, BdrNodeStatus oldstatus, const int *seq_id);
+extern List* bdr_read_connection_configs(void);
 
 /* return a node name or (none) if unknown for given nodeid */
 extern const char * bdr_nodeid_name(const BDRNodeId * const node, bool missing_ok);

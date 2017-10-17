@@ -13,8 +13,6 @@
 
 #include <signal.h>
 
-#include "lib/ilist.h"
-
 #define EMPTY_REPLICATION_NAME ""
 
 /*
@@ -60,6 +58,10 @@ typedef enum BdrNodeStatus {
 #define BDR_NODE_STATUS_READY_S "'r'"
 #define BDR_NODE_STATUS_KILLED_S "'k'"
 
+#ifdef FRONTEND
+typedef uint32 TimeLineID;
+#endif
+
 /* Structure representing bdr_nodes record */
 typedef struct BDRNodeId
 {
@@ -96,18 +98,10 @@ typedef struct BdrConnectionConfig
 	char *replication_sets;
 } BdrConnectionConfig;
 
-typedef struct BdrFlushPosition
-{
-	dlist_node node;
-	XLogRecPtr local_end;
-	XLogRecPtr remote_end;
-} BdrFlushPosition;
-
 extern volatile sig_atomic_t got_SIGTERM;
 extern volatile sig_atomic_t got_SIGHUP;
 
 extern void bdr_error_nodeids_must_differ(const BDRNodeId * const other_nodeid);
-extern List* bdr_read_connection_configs(void);
 extern BdrConnectionConfig* bdr_get_connection_config(const BDRNodeId * nodeid,
 													  bool missing_ok);
 extern BdrConnectionConfig* bdr_get_my_connection_config(bool missing_ok);
