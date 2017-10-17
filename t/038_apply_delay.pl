@@ -68,14 +68,16 @@ my $nconflicts_1 = $node_1->safe_psql($bdr_test_dbname, q[SELECT count(*) FROM b
 cmp_ok($nconflicts_0 + $nconflicts_1, "==", 3, "detected required conflicts");
 
 # check insert/insert output
-my $ch_query = q[SELECT conflict_type, conflict_resolution, local_tuple, remote_tuple, local_commit_time IS NULL FROM bdr.bdr_conflict_history];
+my $ch_query = q[SELECT conflict_type, conflict_resolution, local_tuple, remote_tuple, local_commit_time IS NULL, local_conflict_time - local_commit_time BETWEEN INTERVAL '0.25' SECOND AND INTERVAL '0.75' SECOND FROM bdr.bdr_conflict_history];
+my $ch_query_diag = q[SELECT conflict_type, conflict_resolution, local_tuple, remote_tuple, local_commit_time, local_conflict_time, remote_commit_time, local_conflict_time - local_commit_time AS local_times_diff FROM bdr.bdr_conflict_history];
 is($node_0->safe_psql($bdr_test_dbname, "SELECT count(*) FROM bdr.bdr_conflict_history"),
    0, "found no conflicts on node0");
 is($node_1->safe_psql($bdr_test_dbname, $ch_query . " WHERE conflict_id <= 3"),
-   q[insert_insert|last_update_wins_keep_local|{"city_sid":3,"name":"Tom Price"}|{"city_sid":2,"name":"Tom Price"}|f
-insert_insert|last_update_wins_keep_local|{"city_sid":3,"name":"Tom Price"}|{"city_sid":2,"name":"Tom Price"}|f
-insert_insert|last_update_wins_keep_local|{"city_sid":3,"name":"Tom Price"}|{"city_sid":2,"name":"Tom Price"}|f],
-   "expected insert/insert conflicts found on node1");
+   q[insert_insert|last_update_wins_keep_local|{"city_sid":3,"name":"Tom Price"}|{"city_sid":2,"name":"Tom Price"}|f|t
+insert_insert|last_update_wins_keep_local|{"city_sid":3,"name":"Tom Price"}|{"city_sid":2,"name":"Tom Price"}|f|t
+insert_insert|last_update_wins_keep_local|{"city_sid":3,"name":"Tom Price"}|{"city_sid":2,"name":"Tom Price"}|f|t],
+   "expected insert/insert conflicts found on node1")
+    or diag $node_1->safe_psql($bdr_test_dbname, $ch_query_diag);
 
 # simple update/update conflict
 $node_0->psql($bdr_test_dbname, q[INSERT INTO city(city_sid, name) VALUES (2, 'Tom Price');]);
@@ -89,8 +91,9 @@ $node_1->safe_psql($bdr_test_dbname, q[SELECT * FROM bdr.wait_slot_confirm_lsn(N
 is($node_0->safe_psql($bdr_test_dbname, "SELECT count(*) FROM bdr.bdr_conflict_history"),
    0, "found no conflicts on node0");
 is($node_1->safe_psql($bdr_test_dbname, $ch_query . " WHERE conflict_id = 4"),
-    q[update_update|last_update_wins_keep_local|{"city_sid":2,"name":"Bawk"}|{"city_sid":2,"name":"Bork"}|f],
-    "expected insert/update conflicts found on node1");
+   q[update_update|last_update_wins_keep_local|{"city_sid":2,"name":"Bawk"}|{"city_sid":2,"name":"Bork"}|f|t],
+   "expected insert/update conflicts found on node1")
+   or diag $node_1->safe_psql($bdr_test_dbname, $ch_query_diag);
 
 # simple update/delete conflict
 $node_0->psql($bdr_test_dbname, q[INSERT INTO city(city_sid, name) VALUES (2, 'Tom Price');]);
@@ -102,7 +105,8 @@ $node_1->safe_psql($bdr_test_dbname, q[SELECT * FROM bdr.wait_slot_confirm_lsn(N
 is($node_0->safe_psql($bdr_test_dbname, "SELECT count(*) FROM bdr.bdr_conflict_history"),
    0, "found no conflicts on node0");
 is($node_1->safe_psql($bdr_test_dbname, $ch_query . " WHERE conflict_id = 5"),
-   q[update_delete|skip_change||{"city_sid":2,"name":"Bork"}|t],
-   "expected insert/delete conflicts found on node1");
+   q[update_delete|skip_change||{"city_sid":2,"name":"Bork"}|t|],
+   "expected insert/delete conflicts found on node1")
+   or diag $node_1->safe_psql($bdr_test_dbname, $ch_query_diag);
 
 done_testing();

@@ -405,8 +405,6 @@ process_remote_begin(StringInfo s)
 					break;
 			}
 
-			pg_usleep(usec + (sec * USECS_PER_SEC));
-
 			ret = WaitLatch(&MyProc->procLatch,
 							WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
 							delay_ms);
