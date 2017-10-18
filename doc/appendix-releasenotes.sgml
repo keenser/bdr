@@ -31,6 +31,7 @@
     <listitem><para>Track <structfield>local_commit_time</structfield> in <link linkend="catalog-bdr-conflict-history"><literal>bdr.bdr_conflict_history</literal></link></></>
     <listitem><para>Fix <literal>apply_delay</literal> for remote commit timestamps that are in the local node's future due to clock skew</para></listitem>
     <listitem><para>Support compilation against PostgreSQL 10's <literal>libpq</literal>, for Debian derivative packaging</para></listitem>
+    <listitem><para>Show database name and application_name in logs for BDR workers</para></listitem>
    </itemizedlist>
   </para>
 

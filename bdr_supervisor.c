@@ -29,6 +29,8 @@
 #include "commands/dbcommands.h"
 #include "commands/seclabel.h"
 
+#include "libpq/libpq-be.h"
+
 #include "postmaster/bgworker.h"
 
 #include "storage/latch.h"
@@ -351,6 +353,8 @@ bdr_supervisor_worker_main(Datum main_arg)
 		proc_exit(0);
 	}
 
+	MyProcPort = (Port *) calloc(1, sizeof(Port));
+
 	/*
 	 * Unfortunately we currently can't access shared catalogs like
 	 * pg_shseclabel (where we store information about which database use bdr)
@@ -385,6 +389,8 @@ bdr_supervisor_worker_main(Datum main_arg)
 
 	BackgroundWorkerInitializeConnection(BDR_SUPERVISOR_DBNAME, NULL);
 	Assert(ThisTimeLineID > 0);
+
+	MyProcPort->database_name = BDR_SUPERVISOR_DBNAME;
 
 	LWLockAcquire(BdrWorkerCtl->lock, LW_EXCLUSIVE);
 	BdrWorkerCtl->supervisor_latch = &MyProc->procLatch;
