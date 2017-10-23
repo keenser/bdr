@@ -11,22 +11,12 @@ step s1c: COMMIT;
 step s2c: COMMIT;
 step s2dt: DROP TABLE bdr_ddl_conflict_a;
 step s1wait: SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
-pg_xlog_wait_remote_apply
+wait_slot_confirm_lsn
 
-               
-               
-               
-               
-               
                
 step s2wait: SELECT bdr.wait_slot_confirm_lsn(NULL,NULL); select * from pg_sleep(1);
-pg_xlog_wait_remote_apply
+wait_slot_confirm_lsn
 
-               
-               
-               
-               
-               
                
 pg_sleep       
 
