@@ -1504,11 +1504,11 @@ PG_FUNCTION_INFO_V1(bdr_get_transaction_replorigin);
 Datum
 bdr_get_transaction_replorigin(PG_FUNCTION_ARGS)
 {
-        TransactionId   xid = PG_GETARG_UINT32(0);
-        RepOriginId     data;
-	TimestampTz	ts;
+	TransactionId   xid = PG_GETARG_UINT32(0);
+	RepOriginId     data = 0;
+	TimestampTz		ts;
 
-        TransactionIdGetCommitTsData(xid, &ts, &data);
+	TransactionIdGetCommitTsData(xid, &ts, &data);
 
-        PG_RETURN_INT32( (int32)data );
+	PG_RETURN_INT32( (int32)data );
 }
