@@ -2192,10 +2192,14 @@ bdr_locks_peer_has_lock(BDRLockType min_mode)
 	}
 	else
 	{
-		/* If no peer holds the lock, it must be us, or unlocked */
+		/*
+		 * If no peer holds the lock, it must be us, or unlocked, or the
+		 * strength must be lower than requested.
+		 */
 		Assert(bdr_my_locks_database->lock_state == BDR_LOCKSTATE_NOLOCK ||
 			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_ACQUIRE_TALLY_CONFIRMATIONS ||
-			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_ACQUIRE_ACQUIRED);
+			   bdr_my_locks_database->lock_state == BDR_LOCKSTATE_ACQUIRE_ACQUIRED ||
+			   bdr_my_locks_database->lock_type < min_mode);
 	}
 
 	return lock_held_by_peer;
