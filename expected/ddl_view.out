@@ -5,8 +5,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_view
                        View "public.test_view"
@@ -47,8 +46,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * FROM test_view;
@@ -63,8 +61,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM test_src_tbl;
@@ -88,8 +85,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * FROM test_src_tbl;
@@ -114,8 +110,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 INSERT INTO renamed_test_view(b) VALUES('d');
@@ -123,8 +118,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * FROM test_src_tbl;
@@ -151,8 +145,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d renamed_test_view
 \c regression
@@ -164,8 +157,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d test_view
 \c postgres

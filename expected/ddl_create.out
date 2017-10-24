@@ -3,8 +3,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_create
                 Table "public.test_tbl_simple_create"
@@ -24,8 +23,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_create
 \c regression
@@ -35,8 +33,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_unlogged_create
           Unlogged table "public.test_tbl_unlogged_create"
@@ -56,8 +53,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_unlogged_create
 \c regression
@@ -67,8 +63,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_pk
                   Table "public.test_tbl_simple_pk"
@@ -92,8 +87,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_simple_pk
 \c regression
@@ -103,8 +97,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_combined_pk
                  Table "public.test_tbl_combined_pk"
@@ -130,8 +123,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_combined_pk
 \c regression
@@ -141,8 +133,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial
                                              Table "public.test_tbl_serial"
@@ -162,8 +153,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial
 \c regression
@@ -173,8 +163,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial
                                              Table "public.test_tbl_serial"
@@ -194,8 +183,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial_pk
                                              Table "public.test_tbl_serial_pk"
@@ -219,8 +207,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial_pk
 \c regression
@@ -230,8 +217,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_serial_combined_pk
                                              Table "public.test_tbl_serial_combined_pk"
@@ -259,8 +245,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -289,8 +274,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -313,8 +297,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -343,8 +326,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -367,8 +349,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_create_index
                 Table "public.test_tbl_create_index"
@@ -399,8 +380,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_arrays_tbl
            Table "public.test_simple_create_with_arrays_tbl"
@@ -424,8 +404,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_enums_tbl
           Table "public.test_simple_create_with_enums_tbl"
@@ -448,8 +427,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_enums_tbl
 \dT+ test_t
@@ -472,8 +450,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_composites_tbl
         Table "public.test_simple_create_with_composites_tbl"
@@ -496,8 +473,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_simple_create_with_composites_tbl
 \dT+ test_t
@@ -531,8 +507,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_inh_*
                          Table "public.test_tbl_inh_chld1"
@@ -611,8 +586,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_inh_parent
                          Table "public.test_tbl_inh_parent"
@@ -667,8 +641,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl_inh_*
 \c regression
@@ -710,8 +683,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ tbl_showfillfactor
@@ -746,8 +718,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                          List of functions
@@ -775,8 +746,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                        List of functions
@@ -806,8 +776,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                             List of functions
@@ -832,8 +801,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dfa test_*
                        List of functions
@@ -868,8 +836,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \do public.##
                                       List of operators
@@ -939,8 +906,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \do public.##

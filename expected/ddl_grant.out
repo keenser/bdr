@@ -13,8 +13,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dp grant_test.*
                                      Access privileges
@@ -46,8 +45,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dp grant_test.*
                                     Access privileges
@@ -75,8 +73,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dp grant_test.*
                                          Access privileges
@@ -109,8 +106,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \dp grant_test.*
                                          Access privileges
@@ -142,8 +138,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT proacl FROM pg_proc WHERE oid = 'grant_test.test_func(int)'::regprocedure;
                   proacl                   
@@ -189,8 +184,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 SELECT proacl FROM pg_proc WHERE oid = 'grant_test.test_func(int)'::regprocedure;
           proacl          

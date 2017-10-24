@@ -4,8 +4,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -24,8 +23,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -49,8 +47,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -69,8 +66,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -88,8 +84,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -107,8 +102,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -126,8 +120,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -145,8 +138,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -164,8 +156,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -183,8 +174,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -202,8 +192,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -221,8 +210,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -240,8 +228,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -261,8 +248,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -283,8 +269,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -304,8 +289,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -325,8 +309,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -347,8 +330,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -370,8 +352,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -390,8 +371,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 DROP INDEX test_idx;
 \d+ test_tbl
@@ -421,8 +401,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -440,8 +419,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_tbl
                        Table "public.test_tbl"
@@ -480,8 +458,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -499,8 +476,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 -- ALTER COLUMN ... SET STATISTICS
 \c postgres
@@ -523,8 +499,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 \d+ test_tbl
@@ -544,8 +519,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 \d+ test_tbl
@@ -568,8 +542,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_inh_root
                           Table "public.test_inh_root"
@@ -690,8 +663,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \d+ test_inh_root
                           Table "public.test_inh_root"
@@ -868,8 +840,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c postgres
 SELECT * FROM test_inh_root;
@@ -914,8 +885,7 @@ SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
  wait_slot_confirm_lsn 
 -----------------------
  
- 
-(2 rows)
+(1 row)
 
 \c regression
 SELECT * FROM test_inh_root;
