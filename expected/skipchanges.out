@@ -21,6 +21,7 @@ WHERE (n.node_sysid, n.node_timeline, n.node_dboid) != bdr.bdr_get_local_nodeid(
 ERROR:  Target LSN must be nonzero
 -- Access a bogus node.
 -- Needs a wrapper because of message differences between 9.4bdr and 9.6
+\set VERBOSITY terse
 DO LANGUAGE plpgsql
 $$
 DECLARE
@@ -33,13 +34,14 @@ EXCEPTION
        errm = MESSAGE_TEXT;
     IF errm LIKE '%cache lookup failed for %bdr_0_0_%' THEN
       RAISE EXCEPTION 'Got expected lookup error';
+    ELSIF errm LIKE 'replication origin "bdr_0_0_%" does not exist' THEN
+      RAISE EXCEPTION 'Got expected lookup error';
     ELSE
       RAISE;
     END IF;
 END;
 $$;
 ERROR:  Got expected lookup error
-CONTEXT:  PL/pgSQL function inline_code_block line 11 at RAISE
 SELECT bdr.skip_changes_upto(n.node_sysid, n.node_timeline, n.node_dboid, '0/1')
 FROM bdr.bdr_nodes n
 WHERE (n.node_sysid, n.node_timeline, n.node_dboid) = bdr.bdr_get_local_nodeid();
