@@ -2234,6 +2234,7 @@ static void
 bdr_process_remote_action(StringInfo s)
 {
 	char action = pq_getmsgbyte(s);
+	Assert(CurrentMemoryContext == MessageContext);
 	switch (action)
 	{
 			/* BEGIN */
@@ -2262,6 +2263,7 @@ bdr_process_remote_action(StringInfo s)
 		default:
 			elog(ERROR, "unknown action of type %c", action);
 	}
+	Assert(CurrentMemoryContext == MessageContext);
 }
 
 

@@ -29,6 +29,8 @@
 #include "replication/message.h"
 #include "replication/origin.h"
 
+#include "utils/memutils.h"
+
 #include "miscadmin.h"
 
 /*
@@ -103,6 +105,8 @@ bdr_process_remote_message(StringInfo s)
 done:
 	if (!transactional)
 		replorigin_session_advance(lsn, InvalidXLogRecPtr);
+
+	Assert(CurrentMemoryContext == MessageContext);
 }
 
 /*

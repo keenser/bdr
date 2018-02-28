@@ -184,6 +184,7 @@
 
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/memutils.h"
 #include "utils/pg_lsn.h"
 #include "utils/rel.h"
 #include "utils/guc.h"
@@ -724,6 +725,8 @@ bdr_locks_process_message(int msg_type, bool transactional, XLogRecPtr lsn,
 {
 	bool handled = true;
 
+	Assert(CurrentMemoryContext == MessageContext);
+
 	if (msg_type == BDR_MESSAGE_START)
 	{
 		bdr_locks_process_remote_startup(origin);
@@ -792,6 +795,8 @@ bdr_locks_process_message(int msg_type, bool transactional, XLogRecPtr lsn,
 		elog(LOG, "unknown message type %d", msg_type);
 		handled = false;
 	}
+
+	Assert(CurrentMemoryContext == MessageContext);
 
 	return handled;
 }
@@ -1186,13 +1191,16 @@ static bool
 check_is_my_origin_node(const BDRNodeId * const peer)
 {
 	BDRNodeId session_origin_node;
+	MemoryContext old_ctx;
 
 	Assert(!IsTransactionState());
 	Assert(bdr_worker_type == BDR_WORKER_APPLY);
 
+	old_ctx = CurrentMemoryContext;
 	StartTransactionCommand();
 	bdr_fetch_sysid_via_node_id(replorigin_session_origin, &session_origin_node);
 	CommitTransactionCommand();
+	(void) MemoryContextSwitchTo(old_ctx);
 
 	return bdr_nodeid_eq(peer, &session_origin_node);
 }
@@ -1350,6 +1358,7 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 	StringInfoData	s;
 	const char *lock_name = bdr_lock_type_to_name(lock_type);
 	BDRNodeId myid;
+	MemoryContext old_ctx = CurrentMemoryContext;
 
 	bdr_make_my_nodeid(&myid);
 
@@ -1388,6 +1397,7 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 		Assert(bdr_my_locks_database->lock_state == BDR_LOCKSTATE_NOLOCK);
 
 		/* Add a row to bdr_locks */
+		old_ctx = CurrentMemoryContext;
 		StartTransactionCommand();
 
 		memset(nulls, 0, sizeof(nulls));
@@ -1423,6 +1433,7 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 			ForceSyncCommit(); /* async commit would be too complicated */
 			heap_close(rel, NoLock);
 			CommitTransactionCommand();
+			(void) MemoryContextSwitchTo(old_ctx);
 		}
 		PG_CATCH();
 		{
@@ -1510,6 +1521,7 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 			 LOCKTRACE "prior lesser lock from same lock holder, upgrading the global lock locally");
 
 		Assert(!IsTransactionState());
+		old_ctx = CurrentMemoryContext;
 		StartTransactionCommand();
 		bdr_fetch_sysid_via_node_id(bdr_my_locks_database->lock_holder, &replay_node);
 
@@ -1555,6 +1567,7 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 		heap_close(rel, NoLock);
 
 		CommitTransactionCommand();
+		(void) MemoryContextSwitchTo(old_ctx);
 
 		LWLockRelease(bdr_locks_ctl->lock);
 
@@ -1630,11 +1643,13 @@ decline:
 		StartTransactionCommand();
 		bdr_fetch_sysid_via_node_id(bdr_my_locks_database->lock_holder, &replay_node);
 		CommitTransactionCommand();
+		(void) MemoryContextSwitchTo(old_ctx);
 
 		bdr_send_nodeid(&s, node, false);
 		pq_sendint(&s, lock_type, 4);
 
 		bdr_send_message(&s, false);
+		pfree(s.data);
 	}
 }
 
@@ -1728,13 +1743,11 @@ bdr_locks_release_local_ddl_lock(const BDRNodeId * const lock)
 	HeapTuple		tuple;
 	bool			found = false;
 	Latch		   *latch;
-	StringInfoData	s;
+	MemoryContext	old_ctx = CurrentMemoryContext;
 
 	/* FIXME: check db */
 
 	bdr_locks_find_my_database(false);
-
-	initStringInfo(&s);
 
 	/*
 	 * Remove row from bdr_locks *before* releasing the in memory lock. If we
@@ -1814,6 +1827,7 @@ bdr_locks_release_local_ddl_lock(const BDRNodeId * const lock)
 	START_CRIT_SECTION();
 
 	CommitTransactionCommand();
+	(void) MemoryContextSwitchTo(old_ctx);
 
 	Assert(bdr_my_locks_database->lock_state == BDR_LOCKSTATE_NOLOCK);
 	bdr_my_locks_database->lockcount--;
@@ -1967,6 +1981,7 @@ bdr_send_confirm_lock(void)
 	BDRNodeId		replay;
 	StringInfoData	s;
 	bool			found = false;
+	MemoryContext	old_ctx;
 
 	initStringInfo(&s);
 
@@ -1984,6 +1999,7 @@ bdr_send_confirm_lock(void)
 		|| (bdr_my_locks_database->lock_state == BDR_LOCKSTATE_PEER_CATCHUP && bdr_my_locks_database->lock_type == BDR_LOCK_WRITE));
 
 	Assert(!IsTransactionState());
+	old_ctx = CurrentMemoryContext;
 	StartTransactionCommand();
 	bdr_fetch_sysid_via_node_id(bdr_my_locks_database->lock_holder, &replay);
 
@@ -2039,6 +2055,7 @@ bdr_send_confirm_lock(void)
 	heap_close(rel, NoLock);
 
 	CommitTransactionCommand();
+	(void) MemoryContextSwitchTo(old_ctx);
 }
 
 /*
@@ -2112,6 +2129,7 @@ bdr_locks_process_remote_startup(const BDRNodeId * const node)
 	SysScanDesc scan;
 	HeapTuple tuple;
 	StringInfoData s;
+	MemoryContext old_ctx;
 
 	Assert(bdr_worker_type == BDR_WORKER_APPLY);
 
@@ -2123,6 +2141,7 @@ bdr_locks_process_remote_startup(const BDRNodeId * const node)
 		 LOCKTRACE "got startup message from node "BDR_NODEID_FORMAT_WITHNAME", clearing any locks it held",
 		 BDR_NODEID_FORMAT_WITHNAME_ARGS(*node));
 
+	old_ctx = CurrentMemoryContext;
 	StartTransactionCommand();
 	snap = RegisterSnapshot(GetLatestSnapshot());
 	rel = heap_open(BdrLocksRelid, RowExclusiveLock);
@@ -2162,6 +2181,7 @@ bdr_locks_process_remote_startup(const BDRNodeId * const node)
 	/* Lock the shmem control segment for the state change */
 	LWLockAcquire(bdr_locks_ctl->lock, LW_EXCLUSIVE);
 	CommitTransactionCommand();
+	(void) MemoryContextSwitchTo(old_ctx);
 	LWLockRelease(bdr_locks_ctl->lock);
 }
 
