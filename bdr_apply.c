@@ -297,6 +297,7 @@ process_remote_begin(StringInfo s)
 	{
 		char remote_ident[256];
 		NameData replication_name;
+		MemoryContext old_ctx;
 		BDRNodeId my_nodeid;
 		bdr_make_my_nodeid(&my_nodeid);
 
@@ -325,9 +326,11 @@ process_remote_begin(StringInfo s)
 				remote_origin.sysid, remote_origin.timeline, remote_origin.dboid, MyDatabaseId,
 				NameStr(replication_name));
 
+		old_ctx = CurrentMemoryContext;
 		StartTransactionCommand();
 		remote_origin_id = replorigin_by_name(remote_ident, false);
 		CommitTransactionCommand();
+		(void) MemoryContextSwitchTo(old_ctx);
 	}
 
 	if (bdr_trace_replay)
@@ -494,12 +497,14 @@ process_remote_commit(StringInfo s)
 		BdrFlushPosition *flushpos;
 
 		CommitTransactionCommand();
+		(void) MemoryContextSwitchTo(MessageContext);
 
 		/*
 		 * Associate the end of the remote commit lsn with the local end of
 		 * the commit record.
 		 */
-		flushpos = (BdrFlushPosition *) palloc(sizeof(BdrFlushPosition));
+		flushpos = (BdrFlushPosition *)
+			MemoryContextAlloc(TopMemoryContext, sizeof(BdrFlushPosition));
 		flushpos->local_end = XactLastCommitEnd;
 		/* Feedback is supposed to be the last flushed LSN + 1 */
 		flushpos->remote_end = replorigin_session_origin_lsn;
@@ -850,6 +855,7 @@ process_remote_insert(StringInfo s)
 		if (oldxid != GetTopTransactionId())
 		{
 			CommitTransactionCommand();
+			(void) MemoryContextSwitchTo(MessageContext);
 			started_transaction = false;
 		}
 	}
