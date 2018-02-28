@@ -5,15 +5,16 @@ SELECT * FROM public.bdr_regress_variables()
 
 \c :writedb1
 
-
-CREATE TABLE desync (
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE TABLE public.desync (
    id integer primary key not null,
    n1 integer not null
 );
+$DDL$);
 
 \d desync
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 -- basic builtin datatypes
 \c :writedb2
@@ -22,6 +23,7 @@ SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
 
 \c :writedb1
 
+-- Add a new (dropped) attribute on this node only
 BEGIN;
 SET LOCAL bdr.skip_ddl_replication = on;
 SET LOCAL bdr.skip_ddl_locking = on;
@@ -48,7 +50,7 @@ SELECT * FROM desync ORDER BY id;
 -- This must ERROR not ROLLBACK
 BEGIN;
 SET LOCAL statement_timeout = '2s';
-CREATE TABLE dummy_tbl(id integer);
+SELECT bdr.acquire_global_lock('ddl_lock');
 ROLLBACK;
 
 \c :writedb2
@@ -61,12 +63,12 @@ SELECT * FROM desync ORDER BY id;
 -- the other side col is dropped (or nullable)
 INSERT INTO desync(id, n1) VALUES (2, 2);
 
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 -- This must ROLLBACK not ERROR
 BEGIN;
 SET LOCAL statement_timeout = '10s';
-CREATE TABLE dummy_tbl(id integer);
+SELECT bdr.acquire_global_lock('ddl_lock');
 ROLLBACK;
 
 SELECT * FROM desync ORDER BY id;
@@ -84,12 +86,12 @@ COMMIT;
 \c :writedb1
 
 -- So now this side should apply too
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 -- This must ROLLBACK not ERROR
 BEGIN;
 SET LOCAL statement_timeout = '10s';
-CREATE TABLE dummy_tbl(id integer);
+SELECT bdr.acquire_global_lock('ddl_lock');
 ROLLBACK;
 
 -- Yay!
@@ -98,3 +100,7 @@ SELECT * FROM desync ORDER BY id;
 \c :writedb2
 -- Yay! Again!
 SELECT * FROM desync ORDER BY id;
+
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+DROP TABLE public.desync;
+$DDL$);
