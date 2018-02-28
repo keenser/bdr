@@ -230,6 +230,9 @@ build_index_scan_key(ScanKey skey, Relation rel, Relation idxrel, BDRTupleData *
  *
  * If a matching tuple is found setup 'tid' to point to it and return true,
  * false is returned otherwise.
+ *
+ * Populates 'slot' with a materialized copy of the found tuple in the memory
+ * context of the passed slot.
  */
 bool
 find_pkey_tuple(ScanKey skey, BDRRelation *rel, Relation idxrel,
@@ -254,6 +257,11 @@ retry:
 	if ((scantuple = index_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		found = true;
+		/*
+		 * Store a copied physical tuple that doesn't reference shmem or hold
+		 * any buffer pin, so it can live past the index scan. Any old tuple
+		 * from a prior loop is cleared first.
+		 */
 		/* FIXME: Improve TupleSlot to not require copying the whole tuple */
 		ExecStoreTuple(scantuple, slot, InvalidBuffer, false);
 		ExecMaterializeSlot(slot);
