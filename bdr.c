@@ -85,6 +85,7 @@ int bdr_max_databases;
 bool bdr_skip_ddl_replication;
 bool bdr_skip_ddl_locking;
 bool bdr_do_not_replicate;
+bool bdr_discard_mismatched_row_attributes;
 bool bdr_trace_replay;
 int bdr_trace_ddl_locks_level;
 char *bdr_extra_apply_connection_options;
@@ -632,7 +633,7 @@ bdr_do_not_replicate_check_hook(bool *newvalue, void **extra, GucSource source)
 /*
  * Override the origin replication identifier that this session will record for
  * its transactions. We need this mainly when applying dumps during
- * init_replica.
+ * init_replica, so we cannot spew WARNINGs everywhere.
  */
 static void
 bdr_do_not_replicate_assign_hook(bool newvalue, void *extra)
@@ -642,6 +643,19 @@ bdr_do_not_replicate_assign_hook(bool newvalue, void *extra)
 		replorigin_session_origin = DoNotReplicateId;
 	else
 		replorigin_session_origin = InvalidRepOriginId;
+}
+
+static void
+bdr_discard_mismatched_row_attributes_assign_hook(bool newvalue, void *extra)
+{
+	if (newvalue)
+	{
+		/* To make sure it lands up in the log */
+		elog(LOG, "WARNING: bdr.discard_missing_row_attributes has been enabled by the user");
+
+		/* To make it more likey the user sees the message in the client */
+		elog(WARNING, "WARNING: bdr.discard_missing_row_attributes has been enabled, data discrepencies may result");
+	}
 }
 
 /*
@@ -840,6 +854,15 @@ _PG_init(void)
 							 bdr_do_not_replicate_check_hook,
 							 bdr_do_not_replicate_assign_hook,
 							 NULL);
+
+	DefineCustomBoolVariable("bdr.discard_mismatched_row_attributes",
+							 "Internal. Only for use during recovery from faults.",
+							 NULL,
+							 &bdr_discard_mismatched_row_attributes,
+							 false,
+							 PGC_BACKEND,
+							 0,
+							 NULL, bdr_discard_mismatched_row_attributes_assign_hook, NULL);
 
 	DefineCustomBoolVariable("bdr.trace_replay",
 							 "Log each remote action as it is received",
