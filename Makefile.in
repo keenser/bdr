@@ -320,7 +320,7 @@ installdirs-scripts:
 .PHONY: installdirs-scripts
 endif
 
-check: regresscheck isolationcheck prove_installcheck
+check: regresscheck noisolationcheck prove_installcheck
 
 REGRESSCHECKS= \
 	init \
@@ -383,6 +383,13 @@ regresscheck: all install
 	./run_tests --config $(bdr_abs_srcdir)/$(REGRESSCONFIG) \
 		--testbinary src/test/regress/pg_regress \
 		$(REGRESSCHECKS)
+
+noisolationcheck:
+	@echo "Isolation tests are now skipped by default even on 9.4"
+	@echo "Use 'make isolationcheck' to run them"
+
+.PHONY: noisolationcheck
+
 
 ifeq ($(MAJORVERSION),9.4)
 isolationcheck: all install
