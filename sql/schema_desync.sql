@@ -110,6 +110,95 @@ SELECT * FROM desync ORDER BY id;
 -- Yay! Again!
 SELECT * FROM desync ORDER BY id;
 
-SELECT bdr.bdr_replicate_ddl_command($DDL$
-DROP TABLE public.desync;
-$DDL$);
+
+-- Cleanup
+DELETE FROM desync;
+SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
+
+
+\c :writedb1
+
+-- Now what if we repeat the scenario, but this time with non-null data?
+-- The downstream should reject the too-wide row now. It doesn't matter
+-- that the local col is nullable, only that the value is not null. But we're
+-- going to make it not-NULLable anyway, so we can also test rejection of
+-- right-extension of missing remote values.
+BEGIN;
+SET LOCAL bdr.skip_ddl_replication = on;
+SET LOCAL bdr.skip_ddl_locking = on;
+ALTER TABLE desync ADD COLUMN dropme2 integer;
+ALTER TABLE desync ALTER COLUMN dropme2 SET NOT NULL;
+COMMIT;
+
+INSERT INTO desync(id, n1, dropme2) VALUES (4, 4, 4);
+
+SELECT * FROM desync ORDER BY id;
+
+-- This must ERROR not ROLLBACK
+BEGIN;
+SET LOCAL statement_timeout = '2s';
+SELECT bdr.acquire_global_lock('ddl_lock');
+ROLLBACK;
+
+\c :writedb2
+
+SELECT * FROM desync ORDER BY id;
+
+-- Similarly, if we enqueue a change on our side that lacks a value
+-- for the other side's non-nullable column, it must not replicate.
+
+INSERT INTO desync(id, n1) VALUES (5, 5);
+
+-- This must ERROR not ROLLBACK
+BEGIN;
+SET LOCAL statement_timeout = '2s';
+SELECT bdr.acquire_global_lock('ddl_lock');
+ROLLBACK;
+
+SELECT * FROM desync ORDER BY id;
+
+-- If we add the col locally, we can then apply the pending change, but we'll
+-- still be stuck in the other direction because of the pending change from our
+-- side.
+BEGIN;
+SET LOCAL bdr.skip_ddl_replication = on;
+SET LOCAL bdr.skip_ddl_locking = on;
+ALTER TABLE desync ADD COLUMN dropme2 integer;
+COMMIT;
+
+\c :writedb1
+
+-- We don't support autocompletion of DEFAULTs; this won't help
+BEGIN;
+SET LOCAL bdr.skip_ddl_replication = on;
+SET LOCAL bdr.skip_ddl_locking = on;
+ALTER TABLE desync ALTER COLUMN dropme2 SET DEFAULT 0;
+COMMIT;
+
+-- This must ERROR not ROLLBACK
+BEGIN;
+SET LOCAL statement_timeout = '2s';
+SELECT bdr.acquire_global_lock('ddl_lock');
+ROLLBACK;
+
+-- but if we drop the NOT NULL constraint temporarily we can
+-- apply the pending change.
+BEGIN;
+SET LOCAL bdr.skip_ddl_replication = on;
+SET LOCAL bdr.skip_ddl_locking = on;
+ALTER TABLE desync ALTER COLUMN dropme2 DROP NOT NULL;
+COMMIT;
+
+\c :writedb2
+
+-- This must ROLLBACK not ERROR
+BEGIN;
+SET LOCAL statement_timeout = '2s';
+SELECT bdr.acquire_global_lock('ddl_lock');
+ROLLBACK;
+
+SELECT * FROM desync ORDER BY id;
+
+\c :writedb1
+
+SELECT * FROM desync ORDER BY id;
