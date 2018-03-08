@@ -246,10 +246,10 @@
      <simpara>Cascading replication is not (yet) supported by logical replication.</simpara>
     </listitem>
     <listitem>
-     <simplepara>Large objects (pg_largeobject, lo_create, and so on) are not handled by logical decoding, so it cannot be replicated by BDR</simplepara>
+     <simpara>Large objects (pg_largeobject, lo_create, and so on) are not handled by logical decoding, so it cannot be replicated by BDR</simpara>
     </listitem>
     <listitem>
-     <simplepara>Sequence updates are not replicated by logical replication, as the underlying logical decoding facility does not support them. Traditional sequences don't work in a multimaster environment anyway, so BDR offers alternatives.</simplepara>
+     <simpara>Sequence updates are not replicated by logical replication, as the underlying logical decoding facility does not support them. Traditional sequences don't work in a multimaster environment anyway, so BDR offers alternatives.</simpara>
     </listitem>
    </itemizedlist>
   </para>
