@@ -113,8 +113,7 @@ SELECT * FROM desync ORDER BY id;
 
 -- Cleanup
 DELETE FROM desync;
-SELECT pg_xlog_wait_remote_apply(pg_current_xlog_location(), 0);
-
+SELECT bdr.wait_slot_confirm_lsn(NULL,NULL);
 
 \c :writedb1
 
