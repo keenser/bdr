@@ -61,6 +61,8 @@
 #include "utils/timestamp.h"
 #include "utils/typcache.h"
 
+#include "bdr_output_origin_filter.h"
+
 extern void		_PG_output_plugin_init(OutputPluginCallbacks *cb);
 
 typedef struct
@@ -678,11 +680,15 @@ pg_decode_startup(LogicalDecodingContext * ctx, OutputPluginOptions *opt, bool i
 
 		LWLockRelease(BdrWorkerCtl->lock);
 	}
+
+	bdrorigincache_init(ctx->context);
 }
 
 static void
 pg_decode_shutdown(LogicalDecodingContext * ctx)
 {
+	bdrorigincache_destroy();
+
 	/* release and free slot */
 	bdr_worker_shmem_release();
 }
@@ -692,10 +698,22 @@ pg_decode_shutdown(LogicalDecodingContext * ctx)
  * to the client unless we're in changeset forwarding mode.
  */
 static inline bool
-should_forward_changeset(LogicalDecodingContext *ctx, BdrOutputData *data,
-						 ReorderBufferTXN *txn)
+should_forward_changeset(LogicalDecodingContext *ctx,
+						 RepOriginId origin_id)
 {
-	return txn->origin_id == InvalidRepOriginId || data->forward_changesets;
+	BdrOutputData * const data = ctx->output_plugin_private;
+
+	if (origin_id == InvalidRepOriginId || data->forward_changesets)
+		return true;
+
+	/*
+	 * We used to forward unconditionally here. Now we try to forward only if the changes came
+	 * from BDR not something else.
+	 *
+	 * XXX use bdr_origin_in_same_nodegroup on 94, and in 96 filter in
+	 * bdr_filter_by_origin_cb and assert then bail out here instead.
+	 */
+	return !bdr_origin_in_same_nodegroup(origin_id);
 }
 
 static inline bool
@@ -752,7 +770,7 @@ pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 
 	AssertVariableIsOfType(&pg_decode_begin_txn, LogicalDecodeBeginCB);
 
-	if (!should_forward_changeset(ctx, data, txn))
+	if (!should_forward_changeset(ctx, txn->origin_id))
 		return;
 
 	OutputPluginPrepareWrite(ctx, true);
@@ -818,11 +836,9 @@ void
 pg_decode_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 					 XLogRecPtr commit_lsn)
 {
-	BdrOutputData *data = ctx->output_plugin_private;
-
 	int flags = 0;
 
-	if (!should_forward_changeset(ctx, data, txn))
+	if (!should_forward_changeset(ctx, txn->origin_id))
 		return;
 
 	OutputPluginPrepareWrite(ctx, true);
@@ -857,7 +873,7 @@ pg_decode_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	/* Avoid leaking memory by using and resetting our own context */
 	old = MemoryContextSwitchTo(data->context);
 
-	if (!should_forward_changeset(ctx, data, txn))
+	if (!should_forward_changeset(ctx, txn->origin_id))
 		return;
 
 	if (!should_forward_change(ctx, data, bdr_relation, change->action))

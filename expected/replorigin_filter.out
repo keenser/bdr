@@ -83,7 +83,9 @@ SELECT * FROM origin_filter ORDER BY id;
 ----+----
   1 |  1
   2 |  2
-(2 rows)
+  3 |  3
+  4 |  4
+(4 rows)
 
 \c :writedb1
 SELECT pg_replication_origin_session_is_setup();
