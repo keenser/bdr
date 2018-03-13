@@ -335,6 +335,7 @@ REGRESSCHECKS= \
 	upgrade \
 	identifier \
 	schema_desync \
+	replorigin_filter \
 	pause \
 	catalog \
 	terminate \
