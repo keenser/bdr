@@ -75,18 +75,19 @@ my $tempdir = TestLib::tempdir;
 sub make_bdr_group {
     my ($n_nodes, $name_prefix, $mode) = @_;
     $mode = 'logical' if !defined($mode);
+	$name_prefix = 'node_' if !defined($name_prefix);
 
     die "unrecognised join mode $mode"
         if ($mode ne 'logical' && $mode ne 'physical');
 
-    my $node_0 = get_new_node('node_0');
+    my $node_0 = get_new_node("${name_prefix}0");
     initandstart_bdr_group($node_0);
     my @nodes;
     push @nodes, $node_0;
 
     for (my $nodeid = 1; $nodeid < $n_nodes; $nodeid++)
     {
-        my $node_n = get_new_node("node_$nodeid");
+        my $node_n = get_new_node("${name_prefix}${nodeid}");
         push @nodes, $node_n;
         if ($mode eq 'logical')
         {
