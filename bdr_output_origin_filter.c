@@ -88,17 +88,34 @@ bdrorigincache_init(MemoryContext decoding_context)
 	if (BdrOriginCache == NULL)
 	{
 		MemoryContext old_ctxt;
+		int hashflags;
 
 		MemSet(&ctl, 0, sizeof(ctl));
 		ctl.keysize = sizeof(Oid);
 		ctl.entrysize = sizeof(struct BdrOriginCacheEntry);
 		ctl.hcxt = TopMemoryContext;
 
+		hashflags = HASH_ELEM | HASH_CONTEXT;
+#if PG_VERSION_NUM < 90500
+		/*
+		 * Handle the old hash API in PostgreSQL 9.4.
+		 * Note, this assumes that Oid is uint32 which is the case for 9.4 anyway.
+		 *
+		 * See postgres commit:
+		 *
+		 * 4a14f13a0ab Improve hash_create's API for selecting simple-binary-key hash functions.
+		 */
+		ctl.hash = oid_hash;
+		hashflags |= HASH_FUNCTION;
+#else
+		hashflags |= HASH_BLOBS;
+#endif
+
 		old_ctxt = MemoryContextSwitchTo(TopMemoryContext);
 		BdrOriginCache = hash_create("bdr reporigin to node cache",
 								   BDRORIGINCACHE_INITIAL_SIZE,
 								   &ctl,
-								   HASH_ELEM | HASH_CONTEXT | HASH_BLOBS);
+								   hashflags);
 		(void) MemoryContextSwitchTo(old_ctxt);
 
 		Assert(BdrOriginCache != NULL);

@@ -16,6 +16,8 @@
 #define	InvalidRepOriginId					InvalidRepNodeId
 #define DoNotReplicateId					DoNotReplicateRepNodeId
 
+#define REPLORIGIDENT						REPLIDIDENT
+
 #define replorigin_session_origin			replication_origin_id
 #define replorigin_session_origin_lsn		replication_origin_lsn
 #define replorigin_session_origin_timestamp	replication_origin_timestamp
