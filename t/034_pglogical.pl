@@ -4,6 +4,29 @@
 # by bdr. In either case we must verify that writes go from/to the
 # peer that isn't attached to pglogical too.
 #
+# This currently has a number of limitations:
+#
+# * Manual schema clone required at setup time, can't
+#   schema-sync.
+#
+# * DDL requires two layers of wrapper functions. The pglogical function MUST
+#   be the outer of the two, e.g.
+#
+#		SELECT pglogical.replicate_ddl_command($PGLDDL$
+#		SELECT bdr.bdr_replicate_ddl_command($BDRDDL$
+#		CREATE TABLE public.my_table(id integer primary key, dummy text);
+#		$BDRDDL$);
+#		$PGLDDL$);
+#
+# * No failover supported on upstream or downstream. This replicates from
+#   one SPECIFIC bdr node to one other SPECIFIC bdr node. But it replicates
+#   writes from all upstream bdr node to all downstream bdr nodes, you just
+#   can't change out which node is the pgl provider and subscriber.
+#
+# * Initial data sync untested as yet.
+#
+# * Table resync untested as yet
+#
 use strict;
 use warnings;
 use lib 't/';
@@ -14,6 +37,7 @@ use TestLib;
 use IPC::Run qw(timeout);;
 use Test::More;
 use utils::nodemanagement;
+use File::Temp qw(tempfile);
 
 # Sanity check: is the pglogical extension present? If not, there's no point continuing this test.
 my $compat_check = get_new_node('compat_check');
@@ -38,7 +62,25 @@ $compat_check->stop;
 my $providers = make_bdr_group(2,'provider_');
 my ($provider_0, $provider_1) = @$providers;
 
-# TODO: pre-seed some tables and data in provider
+$provider_0->safe_psql($bdr_test_dbname, q[
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE TABLE public.preseed_in(id integer primary key, blah text);
+$DDL$);
+]);
+
+$provider_0->safe_psql($bdr_test_dbname, q[
+SELECT bdr.bdr_replicate_ddl_command($DDL$
+CREATE TABLE public.preseed_ex(id integer primary key, blah text);
+$DDL$);
+]);
+
+$provider_0->safe_psql($bdr_test_dbname, q[ INSERT INTO preseed_in(id, blah) VALUES (1, 'provider_0'); ]);
+$provider_0->safe_psql($bdr_test_dbname, q[ INSERT INTO preseed_ex(id, blah) VALUES (1, 'provider_0'); ]);
+$provider_0->safe_psql($bdr_test_dbname, q[SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);]);
+
+$provider_1->safe_psql($bdr_test_dbname, q[ INSERT INTO preseed_in(id, blah) VALUES (2, 'provider_1'); ]);
+$provider_1->safe_psql($bdr_test_dbname, q[ INSERT INTO preseed_ex(id, blah) VALUES (2, 'provider_1'); ]);
+$provider_1->safe_psql($bdr_test_dbname, q[SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);]);
 
 my $subscribers = make_bdr_group(2,'subscriber_');
 my ($subscriber_0, $subscriber_1) = @$subscribers;
@@ -63,6 +105,8 @@ $DDL$);]);
 
 $provider_0->safe_psql($bdr_test_dbname,
 	q[SELECT * FROM pglogical.create_node(node_name := 'bdr_provider', dsn := '] . $provider_0->connstr($bdr_test_dbname) . q[');]);
+
+$provider_0->safe_psql($bdr_test_dbname, q[SELECT * FROM pglogical.replication_set_add_table('default', 'preseed_in')]);
 
 $provider_0->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_lsn(NULL, NULL);]);
 
@@ -123,6 +167,47 @@ note("bdr caught up subscriber");
 # initial sync from the provider, after all.
 my $presubscribe_bdr_nodes = $subscriber_0->safe_psql($bdr_test_dbname, q[SELECT node_sysid, node_timeline, node_dboid, node_name FROM bdr.bdr_nodes ORDER BY 1,2,3,4]);
 
+# We should be able to use synchronize_structure := true in our subscription,
+# but we can't because pgl's pg_restore invocation won't wrap the commands in
+# bdr.bdr_replicate_ddl_command. There's no pg_dump option to generate a prewrapped
+# dump either.
+#
+# Since we don't do transparent DDL rep that means we'll fail with DDL errors.
+#
+# Work around by applying the schema to each downstream with replication off.
+# Of course this can only work if you don't make concurrent schema changes.
+#
+# An alternative is to bring up pglogical first, then bdr on the downstream
+# once pglogical is synced up. (We don't test that here yet, but it's the simpler/safer
+# of the two anyway).
+
+#'-d', $provider_0->connstr($bdr_test_dbname) . q[ options='-c bdr.do_not_replicate=on -c bdr.skip_ddl_locking=on -c bdr.skip_ddl_replication=on -c bdr.permit_unsafe_ddl_commands=on']
+my ($dumpfh, $dumpfile) = tempfile('pgl_dump_XXXX', UNLINK => 1);
+
+IPC::Run::run([
+		'pg_dump',
+		'-Fc',
+		'-d', $provider_0->connstr($bdr_test_dbname),
+		'--schema-only',
+		'-N', 'pglogical',
+		'-N', 'bdr',
+		'-f', $dumpfile
+	])
+	or BAIL_OUT('error running manual schema dump');
+
+for my $node (@$subscribers)
+{
+	IPC::Run::run([
+		'pg_restore',
+		'-d', $node->connstr($bdr_test_dbname) . q[ options='-c bdr.do_not_replicate=on -c bdr.skip_ddl_locking=on -c bdr.skip_ddl_replication=on -c bdr.permit_unsafe_ddl_commands=on'],
+		$dumpfile
+	])
+	or BAIL_OUT('error running manual schema restore on ' . $node->name);
+}
+
+close($dumpfh);
+unlink($dumpfile);
+
 # Establish a subscription with origin-forwarding enabled. pglogical2 doesn't
 # implement origin selective forwarding, it's all or nothing.
 #
@@ -141,7 +226,7 @@ $subscriber_0->safe_psql($bdr_test_dbname,
 	  subscription_name := 'bdr_subscription',
 	  provider_dsn := '] . $provider_0->connstr($bdr_test_dbname) . q[',
 	  synchronize_structure := false,
-	  synchronize_data := false,
+	  synchronize_data := true,
 	  forward_origins := '{all}');]);
 
 note("created subscription, waiting for bdr apply");
@@ -150,6 +235,44 @@ $subscriber_0->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_
 note("bdr caught up subscriber");
 
 is($subscriber_1->safe_psql($bdr_test_dbname, q[SELECT 1 FROM pglogical.node;]), '', 'pglogical node did not replicate to subscriber_1');
+
+# These were synced by our manual schema sync, since synchronize_structure was off.
+is($subscriber_0->safe_psql($bdr_test_dbname, q[ SELECT 1 FROM pg_class WHERE relname = 'preseed_in';]),
+   '1', 'preseed table found on subscriber_0');
+is($subscriber_1->safe_psql($bdr_test_dbname, q[ SELECT 1 FROM pg_class WHERE relname = 'preseed_in';]),
+   '1', 'preseed table found on subscriber_1');
+is($subscriber_0->safe_psql($bdr_test_dbname, q[ SELECT 1 FROM pg_class WHERE relname = 'preseed_ex';]),
+   '1', 'preseed table found on subscriber_0');
+is($subscriber_1->safe_psql($bdr_test_dbname, q[ SELECT 1 FROM pg_class WHERE relname = 'preseed_ex';]),
+   '1', 'preseed table found on subscriber_1');
+
+my $preseed_expected = "1|provider_0\n2|provider_1";
+for my $node (@$providers, @$subscribers) {
+	is($node->safe_psql($bdr_test_dbname, q[ SELECT * FROM preseed_in ORDER BY id ]),
+	   $preseed_expected, 'preseed_in table contents synced on ' . $node->name);
+}
+
+for my $node (@$providers) {
+	is($node->safe_psql($bdr_test_dbname, q[ SELECT * FROM preseed_ex ORDER BY id ]),
+	   $preseed_expected, 'preseed_ex table contents correct on ' . $node->name);
+}
+# preseed_ex should be empty on downstream since it's not in a repset
+for my $node (@$subscribers) {
+	is($node->safe_psql($bdr_test_dbname, q[ SELECT * FROM preseed_ex ORDER BY id ]),
+	   '', 'preseed_ex table contents empty on ' . $node->name);
+}
+
+# Add preseed_ex to repset and manually resync it
+$provider_0->safe_psql($bdr_test_dbname, q[SELECT * FROM pglogical.replication_set_add_table('default', 'preseed_ex')]);
+$subscriber_0->safe_psql($bdr_test_dbname, q[SELECT * FROM pglogical.alter_subscription_resynchronize_table('bdr_subscription', 'preseed_ex')]);
+note "waiting for resync to complete";
+$subscriber_0->poll_query_until($bdr_test_dbname, q[SELECT EXISTS (SELECT 1 FROM pglogical.local_sync_status WHERE sync_status IN ('y', 'r') AND sync_relname = 'preseed_ex')])
+	or diag "resync of preseed_ex failed";
+
+for my $node (@$subscribers) {
+	is($node->safe_psql($bdr_test_dbname, q[ SELECT * FROM preseed_ex ORDER BY id ]),
+	   $preseed_expected, 'preseed_ex table contents correct on ' . $node->name . " after resync");
+}
 
 # Initial subscribe and table sync
 note "waiting for pgl status replicating";
