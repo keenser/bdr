@@ -705,6 +705,8 @@ should_forward_changeset(LogicalDecodingContext *ctx,
 
 	if (origin_id == InvalidRepOriginId || data->forward_changesets)
 		return true;
+	else if (origin_id == DoNotReplicateId)
+		return false;
 
 	/*
 	 * We used to forward unconditionally here. Now we try to forward only if the changes came

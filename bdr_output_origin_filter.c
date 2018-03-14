@@ -187,35 +187,36 @@ bdrorigincache_destroy(void)
 static void
 bdr_lookup_origin(RepOriginId origin_id, BdrOriginCacheEntry *entry)
 {
-	if (origin_id == InvalidRepOriginId)
-		entry->is_bdr_peer = false;
-	else
+	bool txn_started = false;
+	char *origin_name;
+
+	Assert(origin_id != InvalidRepOriginId);
+	Assert(origin_id != DoNotReplicateId);
+
+	if (!IsTransactionState())
 	{
-		bool txn_started = false;
-		char *origin_name;
-
-		if (!IsTransactionState())
-		{
-			StartTransactionCommand();
-			txn_started = true;
-		}
-
-		if (replorigin_by_oid(origin_id, true, &origin_name))
-			entry->is_bdr_peer = strncmp(origin_name, "bdr_", 4) == 0;
-		else
-			entry->is_bdr_peer = false;
-
-		if (txn_started)
-			CommitTransactionCommand();
+		StartTransactionCommand();
+		txn_started = true;
 	}
+
+	if (replorigin_by_oid(origin_id, true, &origin_name))
+		entry->is_bdr_peer = strncmp(origin_name, "bdr_", 4) == 0;
+	else
+		entry->is_bdr_peer = false;
+
+	if (txn_started)
+		CommitTransactionCommand();
+
 	entry->is_valid = true;
 }
 
 bool
 bdr_origin_in_same_nodegroup(RepOriginId origin_id)
 {
-	BdrOriginCacheEntry *entry = bdrorigincache_get_node(origin_id);
+	BdrOriginCacheEntry *entry;
+	Assert(origin_id != InvalidRepOriginId);
+	Assert(origin_id != DoNotReplicateId);
+	entry = bdrorigincache_get_node(origin_id);
 	Assert(entry->is_valid);
-
 	return entry->is_bdr_peer;
 }
