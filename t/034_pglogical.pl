@@ -38,6 +38,10 @@ use IPC::Run qw(timeout);;
 use Test::More;
 use utils::nodemanagement;
 use File::Temp qw(tempfile);
+use Carp;
+
+$SIG{__DIE__} = sub { Carp::confess @_ };
+$SIG{INT}  = sub { die("interupted by SIGINT"); };
 
 # Sanity check: is the pglogical extension present? If not, there's no point continuing this test.
 my $compat_check = get_new_node('compat_check');
@@ -110,22 +114,7 @@ $provider_0->safe_psql($bdr_test_dbname, q[SELECT * FROM pglogical.replication_s
 
 $provider_0->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_lsn(NULL, NULL);]);
 
-# On subscriber, to mix it up a bit, we'll force local creation. We must also
-# tell BDR not to replicate anything in pglogical's catalogs once the extension
-# is set up and before we try to do anything with it.
-#
-# XXX Disabled for now because the subsequent bdr.table_set_replication_sets will
-# enqueue a SECURITY LABEL command on the tables, even if bdr.skip_ddl_replication
-# is set (bug?). That won't apply. TODO.
-#
-##$subscriber_0->psql($bdr_test_dbname, q[
-##BEGIN;
-##SET bdr.skip_ddl_replication = on;
-##CREATE EXTENSION pglogical;
-##COMMIT;
-##]);
-##
-
+# Same deal on the subscriber
 $subscriber_0->safe_psql($bdr_test_dbname, q[
 SELECT bdr.bdr_replicate_ddl_command($DDL$
 CREATE EXTENSION pglogical;
@@ -175,13 +164,36 @@ my $presubscribe_bdr_nodes = $subscriber_0->safe_psql($bdr_test_dbname, q[SELECT
 # Since we don't do transparent DDL rep that means we'll fail with DDL errors.
 #
 # Work around by applying the schema to each downstream with replication off.
-# Of course this can only work if you don't make concurrent schema changes.
-#
+# Of course this can only work if you don't make concurrent schema changes. To
+# prevent concurrent changes we could take a global DDL lock in 'ddl_lock' mode;
+# this won't block concurrent writes.
+
+my ($stdin, $stdout, $stderr);
+my $lock_handle = IPC::Run::start(['psql', '-qAtX', '-d', $provider_0->connstr($bdr_test_dbname)],
+	'<', \$stdin,
+	'>', \$stdout,
+	'2>', \$stderr);
+
+$stdin .= q[
+BEGIN;
+SELECT bdr.acquire_global_lock('ddl_lock');
+SELECT 1;
+];
+
+do { $lock_handle->pump; print $stdout; } until $stdout =~ /1[\r\n]$/;
+
+ok($provider_0->safe_psql($bdr_test_dbname, q[SELECT 1 FROM bdr.bdr_locks WHERE owner_node_name = '] . $provider_0->name . q[' AND lock_mode = 'ddl_lock' AND lock_state = 'acquire_acquired'],),
+   'DDL lock acquired on provider0')
+	or diag "no lock; " . $provider_0->safe_psql($bdr_test_dbname, q[SELECT * FROM bdr.bdr_locks]);
+
+ok($provider_1->safe_psql($bdr_test_dbname, q[SELECT 1 FROM bdr.bdr_locks WHERE owner_node_name = '] . $provider_0->name . q[' AND lock_mode = 'ddl_lock' AND lock_state = 'peer_confirmed'],),
+   'DDL lock acquired on provider1')
+	or diag "no lock; " . $provider_1->safe_psql($bdr_test_dbname, q[SELECT * FROM bdr.bdr_locks]);
+
 # An alternative is to bring up pglogical first, then bdr on the downstream
 # once pglogical is synced up. (We don't test that here yet, but it's the simpler/safer
 # of the two anyway).
 
-#'-d', $provider_0->connstr($bdr_test_dbname) . q[ options='-c bdr.do_not_replicate=on -c bdr.skip_ddl_locking=on -c bdr.skip_ddl_replication=on -c bdr.permit_unsafe_ddl_commands=on']
 my ($dumpfh, $dumpfile) = tempfile('pgl_dump_XXXX', UNLINK => 1);
 
 IPC::Run::run([
@@ -208,6 +220,12 @@ for my $node (@$subscribers)
 close($dumpfh);
 unlink($dumpfile);
 
+# We can release the DDL lock now
+$stdin .= q[
+ROLLBACK;
+];
+$lock_handle->finish;
+
 # Establish a subscription with origin-forwarding enabled. pglogical2 doesn't
 # implement origin selective forwarding, it's all or nothing.
 #
@@ -230,6 +248,14 @@ $subscriber_0->safe_psql($bdr_test_dbname,
 	  forward_origins := '{all}');]);
 
 note("created subscription, waiting for bdr apply");
+
+# Ideally we'd like to make both subscribers bdr.bdr_node_set_read_only here.
+# Handily, pglogical applies work at a lower level than BDR enforces read-only
+# mode, so we can do just that.
+
+for my $node (@$subscribers) {
+	$node->safe_psql($bdr_test_dbname, q[SELECT bdr.bdr_node_set_read_only('] . $node->name . q[', true);]);
+}
 
 $subscriber_0->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_lsn(NULL, NULL);]);
 note("bdr caught up subscriber");
@@ -279,7 +305,7 @@ note "waiting for pgl status replicating";
 $subscriber_0->poll_query_until($bdr_test_dbname, q[SELECT EXISTS (SELECT 1 FROM pglogical.show_subscription_status() WHERE status = 'replicating')])
 	or BAIL_OUT('failed to achieve status=replicating');
 note "waiting for data sync";
-$subscriber_0->poll_query_until($bdr_test_dbname, q[SELECT EXISTS (SELECT 1 FROM pglogical.local_sync_status WHERE sync_status IN ('y', 'r'))])
+$subscriber_0->poll_query_until($bdr_test_dbname, q[SELECT EXISTS (SELECT 1 FROM pglogical.local_sync_status WHERE sync_status IN ('y', 'r') AND sync_relname IS NULL AND sync_nspname IS NULL)])
 	or BAIL_OUT('failed to achieve data sync');
 
 is($subscriber_0->safe_psql($bdr_test_dbname, q[SELECT node_sysid, node_timeline, node_dboid, node_name FROM bdr.bdr_nodes ORDER BY 1,2,3,4]),
@@ -302,13 +328,26 @@ $ret = $subscriber_0->psql($bdr_test_dbname,
 is($ret, 0, 'DDL lock succeeded on subscriber with node up');
 is($timedout, 0, 'DDL lock acquisition on subscriber did not time out with node up');
 
-# Table creation on upstream and downstream via independent DDL.
-
-$provider_0->safe_psql($bdr_test_dbname, q[
+my $tbl_ddl = q[
+SELECT pglogical.replicate_ddl_command($PGLDDL$
 SELECT bdr.bdr_replicate_ddl_command($DDL$
-CREATE TABLE public.pgl_bdr_test(id integer primary key, dummy text);
+
+CREATE SEQUENCE public.pgl_bdr_test_bdr_seq_test_seq;
+
+CREATE TABLE public.pgl_bdr_test(
+	id integer primary key,
+	dummy text,
+	bdr_seq_test bigint not null default bdr.global_seq_nextval('public.pgl_bdr_test_bdr_seq_test_seq'::regclass),
+	local_seq_test bigserial not null
+);
+
+ALTER SEQUENCE public.pgl_bdr_test_bdr_seq_test_seq OWNED BY public.pgl_bdr_test.bdr_seq_test;
+
 $DDL$);
-]);
+$PGLDDL$);
+];
+
+$provider_0->safe_psql($bdr_test_dbname, $tbl_ddl);
 
 $provider_0->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_lsn(NULL, NULL);]);
 
@@ -319,24 +358,30 @@ is($provider_1->safe_psql($bdr_test_dbname, q[ SELECT 1 FROM pg_class WHERE reln
    1, 'pgl_bdr_test exists on provider_1');
 
 is($subscriber_0->safe_psql($bdr_test_dbname, q[ SELECT 1 FROM pg_class WHERE relname = 'pgl_bdr_test';]),
-   '', 'pgl_bdr_test absent on subscriber_0');
-
-$subscriber_0->safe_psql($bdr_test_dbname, q[
-SELECT bdr.bdr_replicate_ddl_command($DDL$
-CREATE TABLE public.pgl_bdr_test(id integer primary key, dummy text);
-$DDL$);
-]);
+   '1', 'pgl_bdr_test exists on subscriber_0');
 
 # Add a table to default provider repset locally; we don't try to replicate
 # this to our peers. We probably could do so with pglogical.replicate_ddl_command
 # but ... why?
 $provider_0->safe_psql($bdr_test_dbname, q[SELECT * FROM pglogical.replication_set_add_table('default', 'pgl_bdr_test')]);
 
-# OK, we should have tables on both, test writes. Lets make sure everything lands ok.
-$provider_0->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (1, 'provider_0');]);
-$provider_1->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (2, 'provider_1');]);
+# OK, we should have tables on both, test writes. Lets make sure everything
+# lands ok. We'll temporarily allow writes on the subscribers for the purpose.
+for my $node (@$subscribers)
+{
+	$node->safe_psql($bdr_test_dbname, q[SELECT bdr.bdr_node_set_read_only('] . $node->name . q[', false);]);
+}
+
 $subscriber_0->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (3, 'subscriber_0');]);
 $subscriber_1->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (4, 'subscriber_1');]);
+
+for my $node (@$subscribers)
+{
+	$node->safe_psql($bdr_test_dbname, q[SELECT bdr.bdr_node_set_read_only('] . $node->name . q[', true);]);
+}
+
+$provider_0->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (1, 'provider_0');]);
+$provider_1->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (2, 'provider_1');]);
 
 $provider_0->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_lsn(NULL, NULL);]);
 $provider_1->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_lsn(NULL, NULL);]);
@@ -355,6 +400,17 @@ is($subscriber_0->safe_psql($bdr_test_dbname, q[SELECT id, dummy FROM pgl_bdr_te
 is($subscriber_1->safe_psql($bdr_test_dbname, q[SELECT id, dummy FROM pgl_bdr_test ORDER BY id]),
 	qq[1|provider_0\n2|provider_1\n3|subscriber_0\n4|subscriber_1],
 	'subscriber1 has provider- and subscriber-inserted rows');
+
+# Sequence checks
+my $bdr_seq_vals = $provider_0->safe_psql($bdr_test_dbname, q[SELECT bdr_seq_test FROM pgl_bdr_test ORDER BY id]);
+my $local_seq_vals = $provider_0->safe_psql($bdr_test_dbname, q[SELECT local_seq_test FROM pgl_bdr_test ORDER BY id]);
+
+for my $node (@$providers, @$subscribers) {
+	is($node->safe_psql($bdr_test_dbname, q[SELECT bdr_seq_test FROM pgl_bdr_test WHERE dummy LIKE 'provider%' ORDER BY id]),
+	   $bdr_seq_vals, 'bdr sequence generated values match on ' . $node->name);
+	is($node->safe_psql($bdr_test_dbname, q[SELECT bdr_seq_test FROM pgl_bdr_test WHERE dummy LIKE 'provider%' ORDER BY id]),
+	   $bdr_seq_vals, 'local sequence generated values match on ' . $node->name);
+}
 
 # Can we wrap bdr.replicate_ddl_command in pglogical.replicate_ddl_command?
 
@@ -430,12 +486,66 @@ TODO: {
 # about the bdr.bdr_queued_commands, and bdr only examines that during apply.
 # We'd have to expose the bdr callbacks to pgl.
 
-# Fixup for desync caused above
+# Fixup for desync caused above. Permit unsafe to override read-only mode.
 $subscriber_0->safe_psql($bdr_test_dbname, q[
 BEGIN;
 SET LOCAL bdr.skip_ddl_replication = on;
+SET LOCAL bdr.permit_unsafe_ddl_commands = on;
 CREATE TABLE public.replicate_bdr_ddl(id integer primary key);
 COMMIT;
 ]);
+
+$subscriber_0->safe_psql($bdr_test_dbname, q[SELECT pglogical.wait_slot_confirm_lsn(NULL, NULL);]);
+
+# Now we want to promote the subscriber and tear down the provider. Doing it consistently is important,
+# we don't want to lose commits, so we'll
+#
+# * Take the ddl lock in 'write' mode on provider, ensuring all provider queues are flushed to provider0
+#   and no new txns can commit;
+# * Wait for provider0 to flush to subscriber0
+# * halt providers
+# * clear read-only mode on subscribers
+
+# Take provider ddl lock
+$lock_handle = IPC::Run::start(['psql', '-qAtX', '-d', $provider_0->connstr($bdr_test_dbname)],
+	'<', \$stdin,
+	'>', \$stdout,
+	'2>', \$stderr);
+
+$stdin .= q[
+BEGIN;
+SELECT bdr.acquire_global_lock('write_lock');
+SELECT 1;
+];
+
+do { $lock_handle->pump; print $stdout; } until $stdout =~ /1[\r\n]$/;
+
+# Wait for flush to subscribers
+$provider_0->safe_psql($bdr_test_dbname, q[SELECT bdr.wait_slot_confirm_lsn(NULL, NULL);]);
+
+# Stop providers, terminating the one holding the ddl lock last
+$provider_1->stop;
+$provider_0->stop;
+
+# and enable read/write on subscribers
+for my $node (@$subscribers) {
+	$node->safe_psql($bdr_test_dbname, q[SELECT bdr.bdr_node_set_read_only('] . $node->name . q[', false);]);
+}
+
+# locker should've died, but make sure
+$lock_handle->kill_kill;
+
+# Promoted!
+pass("promoted subscriber");
+
+$subscriber_0->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (10, 'promoted_subscriber_0');]);
+$subscriber_1->safe_psql($bdr_test_dbname, q[INSERT INTO pgl_bdr_test(id, dummy) VALUES (11, 'promoted_subscriber_1');]);
+
+is($subscriber_0->safe_psql($bdr_test_dbname, q[SELECT id, dummy FROM pgl_bdr_test ORDER BY id]),
+	qq[1|provider_0\n2|provider_1\n3|subscriber_0\n4|subscriber_1\n10|promoted_subscriber_0\n11|promoted_subscriber_1],
+	'subscriber0 has provider- and subscriber-inserted rows including promoted');
+is($subscriber_1->safe_psql($bdr_test_dbname, q[SELECT id, dummy FROM pgl_bdr_test ORDER BY id]),
+	qq[1|provider_0\n2|provider_1\n3|subscriber_0\n4|subscriber_1\n10|promoted_subscriber_0\n11|promoted_subscriber_1],
+	'subscriber1 has provider- and subscriber-inserted rows including promoted');
 
 done_testing();
