@@ -876,10 +876,10 @@ pg_decode_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	old = MemoryContextSwitchTo(data->context);
 
 	if (!should_forward_changeset(ctx, txn->origin_id))
-		return;
+		goto skip;
 
 	if (!should_forward_change(ctx, data, bdr_relation, change->action))
-		return;
+		goto skip;
 
 	OutputPluginPrepareWrite(ctx, true);
 
@@ -921,6 +921,7 @@ pg_decode_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	}
 	OutputPluginWrite(ctx, true);
 
+skip:
 	MemoryContextSwitchTo(old);
 	MemoryContextReset(data->context);
 
