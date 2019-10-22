@@ -356,7 +356,7 @@ process_remote_begin(StringInfo s)
 			long		delay_ms;
 			TimestampTz		current;
 
-			current = GetCurrentIntegerTimestamp();
+			current = GetCurrentTimestamp();
 
 			/*
 			 * Some amount of clock drift/skew is normal, so
@@ -410,7 +410,7 @@ process_remote_begin(StringInfo s)
 
 			ret = WaitLatch(&MyProc->procLatch,
 							WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-							delay_ms);
+							delay_ms, PG_WAIT_EXTENSION);
 
 			if (ret & WL_POSTMASTER_DEATH)
 				proc_exit(1);
@@ -634,8 +634,8 @@ process_remote_insert(StringInfo s)
 			 action);
 
 	estate = bdr_create_rel_estate(rel->rel);
-	newslot = ExecInitExtraTupleSlot(estate);
-	oldslot = ExecInitExtraTupleSlot(estate);
+	newslot = ExecInitExtraTupleSlot(estate, NULL);
+	oldslot = ExecInitExtraTupleSlot(estate, NULL);
 	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
 	ExecSetSlotDescriptor(oldslot, RelationGetDescr(rel->rel));
 
@@ -924,9 +924,9 @@ process_remote_update(StringInfo s)
 			 action);
 
 	estate = bdr_create_rel_estate(rel->rel);
-	oldslot = ExecInitExtraTupleSlot(estate);
+	oldslot = ExecInitExtraTupleSlot(estate, NULL);
 	ExecSetSlotDescriptor(oldslot, RelationGetDescr(rel->rel));
-	newslot = ExecInitExtraTupleSlot(estate);
+	newslot = ExecInitExtraTupleSlot(estate, NULL);
 	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
 
 	if (action == 'K')
@@ -1187,7 +1187,7 @@ process_remote_delete(StringInfo s)
 	}
 
 	estate = bdr_create_rel_estate(rel->rel);
-	oldslot = ExecInitExtraTupleSlot(estate);
+	oldslot = ExecInitExtraTupleSlot(estate, NULL);
 	ExecSetSlotDescriptor(oldslot, RelationGetDescr(rel->rel));
 
 	read_tuple_parts(s, rel, &oldtup);
@@ -1556,7 +1556,7 @@ bdr_execute_ddl_command(char *cmdstr, char *perpetrator, char *search_path,
 	{
 		List	   *plantree_list;
 		List	   *querytree_list;
-		Node	   *command = (Node *) lfirst(command_i);
+		RawStmt	   *command = lfirst_node(RawStmt, command_i);
 		const char *commandTag;
 		Portal		portal;
 		DestReceiver *receiver;
@@ -1572,10 +1572,10 @@ bdr_execute_ddl_command(char *cmdstr, char *perpetrator, char *search_path,
 		 */
 		SetConfigOption("role", perpetrator, PGC_INTERNAL, PGC_S_OVERRIDE);
 
-		commandTag = CreateCommandTag(command);
+		commandTag = CreateCommandTag(command->stmt);
 
 		querytree_list = pg_analyze_and_rewrite(
-			command, cmdstr, NULL, 0);
+			command, cmdstr, NULL, 0, NULL);
 
 		plantree_list = pg_plan_queries(
 			querytree_list, 0, NULL);
@@ -1591,7 +1591,7 @@ bdr_execute_ddl_command(char *cmdstr, char *perpetrator, char *search_path,
 		receiver = CreateDestReceiver(DestNone);
 
 		(void) PortalRun(portal, FETCH_ALL,
-						 isTopLevel,
+						 isTopLevel, true,
 						 receiver, receiver,
 						 NULL);
 		(*receiver->rDestroy) (receiver);
@@ -1939,7 +1939,7 @@ process_queued_drop(HeapTuple cmdtup)
 			}
 		}
 
-		addr = get_object_address(objtype, objnames, objargs, &objrel,
+		addr = get_object_address(objtype, castNode(Node, objnames), &objrel,
 								  AccessExclusiveLock, false);
 
 		/* unsupported object? */
@@ -2056,7 +2056,7 @@ read_tuple_parts(StringInfo s, BDRRelation *rel, BDRTupleData *tup)
 	/* Consume remote data as long as there's a local column to put it in */
 	for (i = 0; i < Min(desc->natts, rnatts); i++)
 	{
-		Form_pg_attribute att = desc->attrs[i];
+		Form_pg_attribute att = &desc->attrs[i];
 		char		kind;
 		const char *data;
 		int			len;
@@ -2143,7 +2143,7 @@ read_tuple_parts(StringInfo s, BDRRelation *rel, BDRTupleData *tup)
 	 */
 	for (i = rnatts; i < desc->natts; i++)
 	{
-		Form_pg_attribute att = desc->attrs[i];
+		Form_pg_attribute att = &desc->attrs[i];
 
 		/*
 		 * If the remote-missing attribute(s) are locally dropped or nullable,
@@ -2240,7 +2240,7 @@ read_rel(StringInfo s, LOCKMODE mode, struct ActionErrCallbackArg *cbarg)
 	rv->relname = (char *) pq_getmsgbytes(s, relnamelen);
 	cbarg->remote_relname = rv->relname;
 
-	relid = RangeVarGetRelidExtended(rv, mode, false, false, NULL, NULL);
+	relid = RangeVarGetRelidExtended(rv, mode, 0, NULL, NULL);
 
 	/*
 	 * Acquire sequencer lock if any of the sequencer relations are
@@ -2583,7 +2583,7 @@ bdr_apply_work(PGconn* streamConn)
 		rc = WaitLatchOrSocket(&MyProc->procLatch,
 							   WL_SOCKET_READABLE | WL_LATCH_SET |
 							   WL_TIMEOUT | WL_POSTMASTER_DEATH,
-							   fd, 1000L);
+							   fd, 1000L, PG_WAIT_EXTENSION);
 
 		ResetLatch(&MyProc->procLatch);
 
@@ -2737,7 +2737,7 @@ bdr_apply_work(PGconn* streamConn)
 			ResetLatch(&MyProc->procLatch);
 			rc = WaitLatch(&MyProc->procLatch,
 						   WL_TIMEOUT | WL_LATCH_SET | WL_POSTMASTER_DEATH,
-						   300000L);
+						   300000L, PG_WAIT_EXTENSION);
 
 			if (rc & WL_POSTMASTER_DEATH)
 				proc_exit(1);

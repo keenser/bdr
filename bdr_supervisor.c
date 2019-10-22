@@ -92,7 +92,7 @@ bdr_register_perdb_worker(const char * dbname)
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS |
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	bgw.bgw_main = NULL;
+	//bgw.bgw_main = NULL;
 	strncpy(bgw.bgw_library_name, BDR_LIBRARY_NAME, BGW_MAXLEN);
 	strncpy(bgw.bgw_function_name, "bdr_perdb_worker_main", BGW_MAXLEN);
 	bgw.bgw_restart_time = 5;
@@ -261,6 +261,7 @@ static void
 bdr_supervisor_createdb()
 {
 	Oid dboid;
+	ParseState *pstate;
 
 	StartTransactionCommand();
 
@@ -284,7 +285,9 @@ bdr_supervisor_createdb()
 		stmt.dbname = BDR_SUPERVISOR_DBNAME;
 		stmt.options = list_make2(&de_template, &de_connlimit);
 
-		dboid = createdb(&stmt);
+		pstate = make_parsestate(NULL);
+
+		dboid = createdb(pstate, &stmt);
 
 		if (dboid == InvalidOid)
 			elog(ERROR, "Failed to create "BDR_SUPERVISOR_DBNAME" DB");
@@ -377,7 +380,7 @@ bdr_supervisor_worker_main(Datum main_arg)
 	 */
 	if (!BdrWorkerCtl->is_supervisor_restart)
 	{
-		BackgroundWorkerInitializeConnection("template1", NULL);
+		BackgroundWorkerInitializeConnection("template1", NULL, 0);
 		bdr_supervisor_createdb();
 
 		BdrWorkerCtl->is_supervisor_restart = true;
@@ -387,7 +390,7 @@ bdr_supervisor_worker_main(Datum main_arg)
 		proc_exit(1);
 	}
 
-	BackgroundWorkerInitializeConnection(BDR_SUPERVISOR_DBNAME, NULL);
+	BackgroundWorkerInitializeConnection(BDR_SUPERVISOR_DBNAME, NULL, 0);
 	Assert(ThisTimeLineID > 0);
 
 	MyProcPort->database_name = BDR_SUPERVISOR_DBNAME;
@@ -417,7 +420,7 @@ bdr_supervisor_worker_main(Datum main_arg)
 		 */
 		rc = WaitLatch(&MyProc->procLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   180000L);
+					   180000L, PG_WAIT_EXTENSION);
 
 		ResetLatch(&MyProc->procLatch);
 
@@ -471,7 +474,7 @@ bdr_supervisor_register()
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS |
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	bgw.bgw_main = NULL;
+	//bgw.bgw_main = NULL;
 	strncpy(bgw.bgw_library_name, BDR_LIBRARY_NAME, BGW_MAXLEN);
 	strncpy(bgw.bgw_function_name, "bdr_supervisor_worker_main", BGW_MAXLEN);
 	bgw.bgw_restart_time = 1;

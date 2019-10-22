@@ -24,6 +24,7 @@
 #include "utils/lsyscache.h"
 #include "utils/timestamp.h"
 #include "utils/datetime.h"
+#include "utils/fmgrprotos.h"
 
 #include "miscadmin.h"
 
@@ -70,7 +71,7 @@ global_seq_nextval_oid(PG_FUNCTION_ARGS)
 	int64	timestamp;
 	int64	res;
 	const int64 seq_ts_epoch = 529111339634; /* Oct 7, 2016, when this code was written, in ms */
-	int64	current_ts = GetCurrentIntegerTimestamp();
+	int64	current_ts = GetCurrentTimestamp();
 
 	if (PG_NARGS() >= 2)
 	{

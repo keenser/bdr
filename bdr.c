@@ -446,7 +446,7 @@ bdr_bgworker_init(uint32 worker_arg, BdrWorkerType worker_type)
 	BackgroundWorkerUnblockSignals();
 
 	/* Connect to our database */
-	BackgroundWorkerInitializeConnection(dbname, NULL);
+	BackgroundWorkerInitializeConnection(dbname, NULL, 0);
 	Assert(ThisTimeLineID > 0);
 
 	MyProcPort->database_name = MemoryContextStrdup(TopMemoryContext, dbname);
@@ -977,12 +977,12 @@ bdr_maintain_schema(bool update_extensions)
 		/* TODO: only do this if necessary */
 		alter_stmt.options = NIL;
 		alter_stmt.extname = (char *)"btree_gist";
-		ExecAlterExtensionStmt(&alter_stmt);
+		ExecAlterExtensionStmt(NULL, &alter_stmt);
 
 		/* TODO: only do this if necessary */
 		alter_stmt.options = NIL;
 		alter_stmt.extname = (char *)"bdr";
-		ExecAlterExtensionStmt(&alter_stmt);
+		ExecAlterExtensionStmt(NULL, &alter_stmt);
 	}
 
 	heap_close(extrel, NoLock);
@@ -1342,7 +1342,7 @@ bdr_skip_changes_upto(PG_FUNCTION_ARGS)
 		{
 			int ret = WaitLatch(&MyProc->procLatch,
 							WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-							500);
+							500, PG_WAIT_EXTENSION);
 
 			if (ret & WL_POSTMASTER_DEATH)
 				proc_exit(1);

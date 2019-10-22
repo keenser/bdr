@@ -178,7 +178,7 @@ bdr_parse_relation_options(const char *label, BDRRelation *rel)
 	if (label == NULL)
 		return;
 
-	data = DatumGetJsonb(
+	data = DatumGetJsonbP(
 		DirectFunctionCall1(jsonb_in, CStringGetDatum(label)));
 
 	if (!JB_ROOT_IS_OBJECT(data))

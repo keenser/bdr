@@ -392,7 +392,7 @@ bdr_count_serialize(void)
 				(errcode_for_file_access(),
 				 errmsg("could not unlink \"%s\": %m", tpath)));
 
-	fd = OpenTransientFile((char *) tpath,
+	fd = OpenTransientFilePerm((char *) tpath,
 						   O_WRONLY | O_CREAT | O_EXCL | PG_BINARY,
 						   S_IRUSR | S_IWUSR);
 	if (fd < 0)
@@ -459,7 +459,7 @@ bdr_count_unserialize(void)
 
 	LWLockAcquire(BdrCountCtl->lock, LW_EXCLUSIVE);
 
-	fd = OpenTransientFile((char *) path,
+	fd = OpenTransientFilePerm((char *) path,
 						   O_RDONLY | PG_BINARY, 0);
 	if (fd < 0 && errno == ENOENT)
 		goto out;

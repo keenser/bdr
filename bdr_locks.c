@@ -189,6 +189,7 @@
 #include "utils/rel.h"
 #include "utils/guc.h"
 #include "utils/snapmgr.h"
+#include "pgstat.h"
 
 #define LOCKTRACE "DDL LOCK TRACE: "
 
@@ -1144,7 +1145,7 @@ bdr_acquire_ddl_lock(BDRLockType lock_type)
 
 		rc = WaitLatch(&MyProc->procLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   10000L);
+					   10000L, PG_WAIT_EXTENSION);
 
 		/* emergency bailout if postmaster has died */
 		if (rc & WL_POSTMASTER_DEATH)
@@ -1286,7 +1287,7 @@ cancel_conflicting_transactions(void)
 
 			rc = WaitLatch(&MyProc->procLatch,
 						   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-						   waittime);
+						   waittime, PG_WAIT_EXTENSION);
 
 			ResetLatch(&MyProc->procLatch);
 
@@ -1427,9 +1428,10 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 		PG_TRY();
 		{
 			tup = heap_form_tuple(RelationGetDescr(rel), values, nulls);
-			simple_heap_insert(rel, tup);
+			//simple_heap_insert(rel, tup);
 			bdr_locks_set_commit_pending_state(BDR_LOCKSTATE_PEER_BEGIN_CATCHUP);
-			CatalogUpdateIndexes(rel, tup);
+			//CatalogTupleUpdate(rel, &tup->t_self, tup);
+			CatalogTupleInsert(rel, tup);
 			ForceSyncCommit(); /* async commit would be too complicated */
 			heap_close(rel, NoLock);
 			CommitTransactionCommand();
@@ -1553,9 +1555,9 @@ bdr_process_acquire_ddl_lock(const BDRNodeId * const node, BDRLockType lock_type
 
 			newtuple = heap_form_tuple(RelationGetDescr(rel),
 									   values, isnull);
-			simple_heap_update(rel, &tuple->t_self, newtuple);
+			//simple_heap_update(rel, &tuple->t_self, newtuple);
 			bdr_locks_set_commit_pending_state(BDR_LOCKSTATE_PEER_BEGIN_CATCHUP);
-			CatalogUpdateIndexes(rel, newtuple);
+			CatalogTupleUpdate(rel, &tuple->t_self, newtuple);
 			found = true;
 		}
 
@@ -2041,9 +2043,9 @@ bdr_send_confirm_lock(void)
 
 		newtuple = heap_form_tuple(RelationGetDescr(rel),
 								   values, isnull);
-		simple_heap_update(rel, &tuple->t_self, newtuple);
+		//simple_heap_update(rel, &tuple->t_self, newtuple);
 		bdr_locks_set_commit_pending_state(BDR_LOCKSTATE_PEER_CONFIRMED);
-		CatalogUpdateIndexes(rel, newtuple);
+		CatalogTupleUpdate(rel, &tuple->t_self, newtuple);
 		found = true;
 	}
 
@@ -2310,7 +2312,7 @@ bdr_locks_check_dml(void)
 
 			rc = WaitLatch(&MyProc->procLatch,
 						   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-						   10000L);
+						   10000L, PG_WAIT_EXTENSION);
 
 			ResetLatch(&MyProc->procLatch);
 

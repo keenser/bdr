@@ -1127,7 +1127,7 @@ SELECT n.node_name,
  s.slot_name, s.restart_lsn AS slot_restart_lsn, s.confirmed_flush_lsn AS slot_confirmed_lsn,
  s.active AS walsender_active,
  s.pid AS walsender_pid,
- r.sent_location, r.write_location, r.flush_location, r.replay_location
+ r.sent_lsn, r.write_lsn, r.flush_lsn, r.flush_lsn
 FROM
  bdr.pg_replication_slots s
  CROSS JOIN LATERAL bdr.bdr_parse_slot_name(s.slot_name) ps(remote_sysid, remote_timeline, remote_dboid, local_dboid, replication_name)

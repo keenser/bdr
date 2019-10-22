@@ -623,6 +623,7 @@ infodir
 docdir
 oldincludedir
 includedir
+runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -695,6 +696,7 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
+runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -947,6 +949,15 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
+  -runstatedir | --runstatedir | --runstatedi | --runstated \
+  | --runstate | --runstat | --runsta | --runst | --runs \
+  | --run | --ru | --r)
+    ac_prev=runstatedir ;;
+  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+  | --run=* | --ru=* | --r=*)
+    runstatedir=$ac_optarg ;;
+
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1084,7 +1095,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir
+		libdir localedir mandir runstatedir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1237,6 +1248,7 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -1918,22 +1930,18 @@ fi
 
 pgac_pg_config_version=$($PG_CONFIG --version 2>/dev/null)
 version_num=$(echo "$pgac_pg_config_version"|
-              $SED -e 's/^PostgreSQL \([0-9]*\)\.\([0-9]*\)\([a-zA-Z0-9.]*\)$/\1.\2/')
+              $SED 's/[^0-9]//g' | cut -c 1-2)
 
 if test -z "$version_num"; then
   as_fn_error $? "could not detect the PostgreSQL version, wrong or broken pg_config?" "$LINENO" 5
 fi
 
-if test "$version_num" != '9.4' -a "$version_num" != '9.6'; then
-   as_fn_error $? "bdr is not compatible with detected postgres version: $version_num" "$LINENO" 5
-else
-   { $as_echo "$as_me:${as_lineno-$LINENO}: building against PostgreSQL $version_num" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: building against PostgreSQL $version_num" >&5
 $as_echo "$as_me: building against PostgreSQL $version_num" >&6;}
-   # Even though Makefile.global defines MAJORVERSION for this, we need access to it
-   # before we include Makefile.global in our own Makefile, so set it directly.
-   BDR_PG_MAJORVERSION="$version_num"
+# Even though Makefile.global defines MAJORVERSION for this, we need access to it
+# before we include Makefile.global in our own Makefile, so set it directly.
+BDR_PG_MAJORVERSION="$version_num"
 
-fi;
 
 # add includedir to prerequisites, so tests for headers can succeed
 CPPFLAGS="-I$($PG_CONFIG --includedir-server) $CFLAGS"
@@ -2787,9 +2795,9 @@ done
 
 
 if test "$ac_cv_header_replication_origin_h" = 'yes'; then
-   { $as_echo "$as_me:${as_lineno-$LINENO}: building with PostgreSQL 9.6" >&5
-$as_echo "$as_me: building with PostgreSQL 9.6" >&6;}
-   BDR_PGVERCOMPAT_INCDIR="compat/96"
+   { $as_echo "$as_me:${as_lineno-$LINENO}: building with PostgreSQL $version_num" >&5
+$as_echo "$as_me: building with PostgreSQL $version_num" >&6;}
+   BDR_PGVERCOMPAT_INCDIR="compat/$version_num"
 elif test "$ac_cv_header_replication_replication_identifier_h" == 'yes'; then
    { $as_echo "$as_me:${as_lineno-$LINENO}: building with PostgreSQL 9.4bdr" >&5
 $as_echo "$as_me: building with PostgreSQL 9.4bdr" >&6;}

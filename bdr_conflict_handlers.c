@@ -42,6 +42,7 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/rel.h"
+#include "utils/regproc.h"
 
 PG_FUNCTION_INFO_V1(bdr_create_conflict_handler);
 PG_FUNCTION_INFO_V1(bdr_drop_conflict_handler);
@@ -271,7 +272,7 @@ bdr_create_conflict_handler(PG_FUNCTION_ARGS)
 		 */
 		const char * const insert_query =
 			"INSERT INTO bdr.bdr_queued_commands (lsn, queued_at, perpetrator, command_tag, command)\n"
-			"   VALUES (pg_current_xlog_location(), NOW(), CURRENT_USER, 'SELECT',\n"
+			"   VALUES (pg_current_wal_lsn(), NOW(), CURRENT_USER, 'SELECT',\n"
 			"           format('SELECT bdr.bdr_create_conflict_handler(%L, %L, %L, %L, %L)', $1, $2, $3, $4, $5));";
 
 		ret = SPI_execute_with_args(insert_query, 5, argtypes,
@@ -403,7 +404,7 @@ bdr_drop_conflict_handler(PG_FUNCTION_ARGS)
 
 		const char * const query =
 			"INSERT INTO bdr.bdr_queued_commands (lsn, queued_at, perpetrator, command_tag, command)\n"
-			"   VALUES (pg_current_xlog_location(), NOW(), CURRENT_USER, 'SELECT', "
+			"   VALUES (pg_current_wal_lsn(), NOW(), CURRENT_USER, 'SELECT', "
 			"           format('SELECT bdr.bdr_drop_conflict_handler(%L, %L)', $1, $2));";
 
 		ret = SPI_execute_with_args(query, 2, argtypes,
@@ -471,8 +472,8 @@ bdr_conflict_handlers_check_handler_fun(Relation rel, Oid proc_oid)
 			break;
 		}
 
-		if (retdesc->attrs[0]->atttypid != rel->rd_rel->reltype ||
-			retdesc->attrs[1]->atttypid != bdr_conflict_handler_action_oid)
+		if (retdesc->attrs[0].atttypid != rel->rd_rel->reltype ||
+			retdesc->attrs[1].atttypid != bdr_conflict_handler_action_oid)
 		{
 			hint = "OUT argument are not of the expected types.";
 			break;
@@ -778,7 +779,7 @@ bdr_conflict_handlers_resolve(BDRRelation * rel, const HeapTuple local,
 			if(HeapTupleHeaderGetTypeId(tup_header) != rel->rel->rd_rel->reltype)
 				elog(ERROR, "Handler %d returned unexpected tuple type %d",
 					 rel->conflict_handlers[i].handler_oid,
-					 retdesc->attrs[0]->atttypid);
+					 retdesc->attrs[0].atttypid);
 
 			tup->t_len = HeapTupleHeaderGetDatumLength(tup_header);
 			ItemPointerSetInvalid(&(tup->t_self));

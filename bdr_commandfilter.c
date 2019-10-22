@@ -555,12 +555,9 @@ statement_affects_only_nonpermanent(Node *parsetree)
 					Relation	rel;
 					bool		istemp;
 
-					relOid = RangeVarGetRelidExtended(rv,
+					relOid = RangeVarGetRelid(rv,
 													  AccessExclusiveLock,
-													  stmt->missing_ok,
-													  false,
-													  NULL,
-													  NULL);
+													  stmt->missing_ok);
 					if (relOid == InvalidOid)
 						continue;
 
@@ -769,7 +766,7 @@ prevent_drop_extension_bdr(DropStmt *stmt)
 
 		/* Get an ObjectAddress for the object. */
 		address = get_object_address(stmt->removeType,
-									 objname, NULL,
+									 castNode(Node, objname),
 									 &relation,
 									 AccessExclusiveLock,
 									 stmt->missing_ok);
@@ -788,19 +785,26 @@ prevent_drop_extension_bdr(DropStmt *stmt)
 }
 
 static void
-bdr_commandfilter(Node *parsetree,
+bdr_commandfilter(PlannedStmt *pstmt,
 				  const char *queryString,
 				  ProcessUtilityContext context,
 				  ParamListInfo params,
+                                  QueryEnvironment *queryEnv,
 				  DestReceiver *dest,
+#ifdef XCP
+                                  bool sentToRemote,
+#endif
 				  char *completionTag)
 {
+        Node       *parsetree = pstmt->utilityStmt;
 	bool incremented_nestlevel = false;
 	bool affects_only_nonpermanent;
 	bool entered_extension = false;
 
 	/* take strongest lock by default. */
 	BDRLockType	lock_type = BDR_LOCK_WRITE;
+
+        elog(DEBUG2, "processing %s: %s in statement %s", context == PROCESS_UTILITY_TOPLEVEL ? "toplevel" : "query", CreateCommandTag(parsetree), queryString);
 
 	/* don't filter in single user mode */
 	if (!IsUnderPostmaster)
@@ -956,6 +960,8 @@ bdr_commandfilter(Node *parsetree,
 		case T_DropRoleStmt:
 			goto done;
 
+		case T_DeclareCursorStmt:
+			goto done;
 		default:
 			break;
 	}
@@ -1335,10 +1341,20 @@ bdr_commandfilter(Node *parsetree,
 	 * (including those that mix DDL and DML, and those with transaction
 	 * control statements).
 	 */
-	if (!bdr_skip_ddl_replication &&
+	if (!affects_only_nonpermanent && !bdr_skip_ddl_replication &&
 		!bdr_in_extension && !in_bdr_replicate_ddl_command &&
 		bdr_ddl_nestlevel == 0)
 	{
+                if (PG_VERSION_NUM >= 90600 && context != PROCESS_UTILITY_TOPLEVEL)
+                        ereport(ERROR,
+                                        (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                                         errmsg("DDL command attempted inside function or multi-statement string"),
+                                         errdetail("9.6BDR does not support transparent DDL replication for "
+                                                           "multi-statement strings or function bodies containing DDL "
+                                                           "commands. Problem statement has tag [%s] in SQL string: %s",
+                                                           CreateCommandTag(parsetree), queryString),
+                                         errhint("Use bdr.bdr_replicate_ddl_command(...) instead")));
+
 		Assert(bdr_ddl_nestlevel >= 0);
 
 		/*
@@ -1350,11 +1366,14 @@ bdr_commandfilter(Node *parsetree,
 		 * bdr.replicate_ddl_command(...) in which case we won't get here.
 		 */
 
-		if (!affects_only_nonpermanent && PG_VERSION_NUM >= 90600)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("Direct DDL commands are not supported while BDR is active"),
-					 errhint("Use bdr.bdr_replicate_ddl_command(...)")));
+		//if (!affects_only_nonpermanent && PG_VERSION_NUM >= 90600)
+		//	ereport(ERROR,
+		//			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+		//			 errmsg("Direct DDL commands are not supported while BDR is active"),
+		//			 errhint("Use bdr.bdr_replicate_ddl_command(...)")));
+
+                if (PG_VERSION_NUM >= 90600)
+                        bdr_capture_ddl(parsetree, queryString, context, params, dest, CreateCommandTag(parsetree));
 
 		elog(DEBUG3, "DDLREP: Entering level %d DDL block. Toplevel command is %s", bdr_ddl_nestlevel, queryString);
 		incremented_nestlevel = true;
@@ -1396,10 +1415,10 @@ done:
 	PG_TRY();
 	{
 		if (next_ProcessUtility_hook)
-			next_ProcessUtility_hook(parsetree, queryString, context, params,
+			next_ProcessUtility_hook(pstmt, queryString, context, params, queryEnv,
 									 dest, completionTag);
 		else
-			standard_ProcessUtility(parsetree, queryString, context, params,
+			standard_ProcessUtility(pstmt, queryString, context, params, queryEnv,
 									dest, completionTag);
 	}
 	PG_CATCH();

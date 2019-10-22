@@ -15,7 +15,7 @@
  */
 #include "postgres_fe.h"
 
-#include "parser/keywords.h"
+#include "common/keywords.h"
 
 /*
  * We don't need the token number, so leave it out to avoid requiring other

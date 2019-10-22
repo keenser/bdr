@@ -1,7 +1,7 @@
 \c regression
 
 SELECT bdr.bdr_replicate_ddl_command($DDL$
-CREATE TABLE public.test_replication(id integer not null primary key, atlsn pg_lsn default pg_current_xlog_insert_location());
+CREATE TABLE public.test_replication(id integer not null primary key, atlsn pg_lsn default pg_current_wal_insert_lsn());
 $DDL$);
 
 INSERT INTO test_replication(id) VALUES (1);
@@ -107,7 +107,7 @@ SELECT id FROM test_replication ORDER BY id;
 -- Better tell the downstream to discard changes up to and including the
 -- problem commit. This would be easier in a real programming language not
 -- psql, but we have \gset at least.
-SELECT pg_current_xlog_insert_location() AS lsn_to_skip_to \gset
+SELECT pg_current_wal_insert_lsn() AS lsn_to_skip_to \gset
 SELECT * FROM bdr.bdr_get_local_nodeid() \gset regression_
 
 -- This is committed after the point we'll skip to, and should

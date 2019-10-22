@@ -18,7 +18,7 @@
 
 #include "dumputils.h"
 
-#include "parser/keywords.h"
+#include "common/keywords.h"
 
 
 /* Globals from keywords.c */

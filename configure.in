@@ -23,21 +23,17 @@ fi
 
 pgac_pg_config_version=$($PG_CONFIG --version 2>/dev/null)
 version_num=$(echo "$pgac_pg_config_version"|
-              $SED -e 's/^PostgreSQL \([[0-9]]*\)\.\([[0-9]]*\)\([[a-zA-Z0-9.]]*\)$/\1.\2/')
+              $SED 's/[[^0-9]]//g' | cut -c 1-2)
 
 if test -z "$version_num"; then
   AC_MSG_ERROR([could not detect the PostgreSQL version, wrong or broken pg_config?])
 fi
 
-if test "$version_num" != '9.4' -a "$version_num" != '9.6'; then
-   AC_MSG_ERROR([bdr is not compatible with detected postgres version: $version_num])
-else
-   AC_MSG_NOTICE([building against PostgreSQL $version_num])
-   # Even though Makefile.global defines MAJORVERSION for this, we need access to it
-   # before we include Makefile.global in our own Makefile, so set it directly.
-   BDR_PG_MAJORVERSION="$version_num"
-   AC_SUBST(BDR_PG_MAJORVERSION)
-fi;
+AC_MSG_NOTICE([building against PostgreSQL $version_num])
+# Even though Makefile.global defines MAJORVERSION for this, we need access to it
+# before we include Makefile.global in our own Makefile, so set it directly.
+BDR_PG_MAJORVERSION="$version_num"
+AC_SUBST(BDR_PG_MAJORVERSION)
 
 # add includedir to prerequisites, so tests for headers can succeed
 CPPFLAGS="-I$($PG_CONFIG --includedir-server) $CFLAGS"
@@ -73,8 +69,8 @@ AC_SUBST(HAVE_SEQAM)
 AC_ARG_VAR([PATH], [PATH for target PostgreSQL install pg_config])
 
 if test "$ac_cv_header_replication_origin_h" = 'yes'; then
-   AC_MSG_NOTICE([building with PostgreSQL 9.6])
-   BDR_PGVERCOMPAT_INCDIR="compat/96"
+   AC_MSG_NOTICE([building with PostgreSQL $version_num])
+   BDR_PGVERCOMPAT_INCDIR="compat/$version_num"
 elif test "$ac_cv_header_replication_replication_identifier_h" == 'yes'; then
    AC_MSG_NOTICE([building with PostgreSQL 9.4bdr])
    BDR_PGVERCOMPAT_INCDIR="compat/94bdr"

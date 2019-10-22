@@ -97,7 +97,7 @@ bdr_wait_slot_confirm_lsn(PG_FUNCTION_ARGS)
 
 		rc = WaitLatch(&MyProc->procLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   1000);
+					   1000, PG_WAIT_EXTENSION);
 
         ResetLatch(&MyProc->procLatch);
 

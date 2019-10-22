@@ -21,7 +21,7 @@
 
 #include <ctype.h>
 
-#include "parser/keywords.h"
+#include "common/keywords.h"
 
 /*
  * ScanKeywordLookup - see if a given word is a keyword

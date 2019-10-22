@@ -117,7 +117,8 @@ bdr_create_truncate_trigger(char *schemaname, char *relname, Oid relid)
 
 	tgaddr = CreateTrigger(tgstmt, NULL, rel->rd_id, InvalidOid,
 						   InvalidOid, InvalidOid,
-						   true /* tgisinternal */);
+						   InvalidOid, InvalidOid, NULL,
+						   true /* tgisinternal */, false);
 
 	/*
 	 * The trigger was created with a 'n'ormal dependency on

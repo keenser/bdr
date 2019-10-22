@@ -48,7 +48,7 @@ bdr_object_relabel(const ObjectAddress *object, const char *seclabel)
 		case RelationRelationId:
 
 			if (!pg_class_ownercheck(object->objectId, GetUserId()))
-				aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+				aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_TABLE,
 							   get_rel_name(object->objectId));
 
 			/* ensure bdr_relcache.c is coherent */
@@ -59,7 +59,7 @@ bdr_object_relabel(const ObjectAddress *object, const char *seclabel)
 		case DatabaseRelationId:
 
 			if (!pg_database_ownercheck(object->objectId, GetUserId()))
-						aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_DATABASE,
+						aclcheck_error(ACLCHECK_NOT_OWNER, ACL_ALL_RIGHTS_DATABASE,
 											   get_database_name(object->objectId));
 
 			/* ensure bdr_dbcache.c is coherent */

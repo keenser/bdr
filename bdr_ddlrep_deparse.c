@@ -340,7 +340,7 @@ bdr_queue_dropped_objects(PG_FUNCTION_ARGS)
 		ExecOpenIndices(estate->es_result_relation_info, false);
 
 		/* lsn, queued_at, dropped_objects */
-		values[0] = pg_current_xlog_location(NULL);
+		values[0] = pg_current_wal_lsn(NULL);
 		values[1] = now(NULL);
 		values[2] = PointerGetDatum(droppedarr);
 		MemSet(nulls, 0, sizeof(nulls));

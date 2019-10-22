@@ -379,8 +379,8 @@ bdr_node_set_read_only_internal(char *node_name, bool read_only, bool force)
 
 		newtuple = heap_form_tuple(RelationGetDescr(rel),
 								   values, nulls);
-		simple_heap_update(rel, &tuple->t_self, newtuple);
-		CatalogUpdateIndexes(rel, newtuple);
+		//simple_heap_update(rel, &tuple->t_self, newtuple);
+		CatalogTupleUpdate(rel, &tuple->t_self, newtuple);
 	}
 	else
 		elog(ERROR, "Node %s not found.", node_name);

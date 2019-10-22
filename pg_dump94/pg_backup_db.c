@@ -132,7 +132,7 @@ _connectDB(ArchiveHandle *AH, const char *reqdb, const char *requser)
 
 	if (AH->promptPassword == TRI_YES && password == NULL)
 	{
-		password = simple_prompt("Password: ", 100, false);
+		simple_prompt("Password: ", password, 100, false);
 		if (password == NULL)
 			exit_horribly(modulename, "out of memory\n");
 	}
@@ -180,7 +180,7 @@ _connectDB(ArchiveHandle *AH, const char *reqdb, const char *requser)
 				free(password);
 
 			if (AH->promptPassword != TRI_NO)
-				password = simple_prompt("Password: ", 100, false);
+				simple_prompt("Password: ", password, 100, false);
 			else
 				exit_horribly(modulename, "connection needs password\n");
 
@@ -240,7 +240,7 @@ ConnectDatabase(Archive *AHX,
 
 	if (prompt_password == TRI_YES && password == NULL)
 	{
-		password = simple_prompt("Password: ", 100, false);
+		simple_prompt("Password: ", password, 100, false);
 		if (password == NULL)
 			exit_horribly(modulename, "out of memory\n");
 	}
@@ -282,7 +282,7 @@ ConnectDatabase(Archive *AHX,
 			prompt_password != TRI_NO)
 		{
 			PQfinish(AH->connection);
-			password = simple_prompt("Password: ", 100, false);
+			simple_prompt("Password: ", password, 100, false);
 			if (password == NULL)
 				exit_horribly(modulename, "out of memory\n");
 			new_pass = true;

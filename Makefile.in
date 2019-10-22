@@ -59,7 +59,7 @@ all: \
 	bdr_dump
 
 # We can't use Makefile.global's MAJORVERSION here yet
-ifneq ($(BDR_PG_MAJORVERSION),9.4)
+ifneq ($(BDR_PG_MAJORVERSION),94)
 SCRIPTS_built += bdr_resetxlog
 all: bdr_resetxlog
 endif
@@ -179,29 +179,32 @@ DUMPOBJS = $(BDR_DUMP_DIR)/pg_dump.o \
 	$(BDR_DUMP_DIR)/pg_backup_utils.o \
 	$(BDR_DUMP_DIR)/parallel.o \
 	$(BDR_DUMP_DIR)/compress_io.o \
-	$(BDR_DUMP_DIR)/dumputils.o \
-	$(BDR_DUMP_DIR)/keywords.o
+	$(BDR_DUMP_DIR)/dumputils.o
 
+BDR_DUMP_DIR := pg_dump$(BDR_PG_MAJORVERSION)
 ifeq ($(MAJORVERSION),9.6)
-BDR_DUMP_DIR := pg_dump96
 BDR_DUMP_LIBS := -lpgfeutils
-else
-BDR_DUMP_DIR := pg_dump
+DUMPOBJS += $(BDR_DUMP_DIR)/keywords.o
+else ifeq ($(MAJORVERSION),9.4)
 BDR_DUMP_LIBS :=
-DUMPOBJS += $(BDR_DUMP_DIR)/kwlookup.o
+DUMPOBJS += $(BDR_DUMP_DIR)/keywords.o \
+	$(BDR_DUMP_DIR)/kwlookup.o
+else
+BDR_DUMP_LIBS := -lz -lpgfeutils
+DUMPOBJS += $(BDR_DUMP_DIR)/string_utils.o
 endif
 
-ifeq ($(MAJORVERSION),9.6)
-RESETXLOG_OBJS := pg_resetxlog/96/pg_resetxlog.o
+ifneq ($(MAJORVERSION),9.4)
+RESETXLOG_OBJS := pg_resetxlog/$(BDR_PG_MAJORVERSION)/pg_resetwal.o
 RESETXLOG_LIBS := -lpgfeutils
 
 bdr_resetxlog_dir:
-	mkdir -p pg_resetxlog/96
+	mkdir -p pg_resetxlog/$(BDR_PG_MAJORVERSION)
 
 .PHONY: bdr_resetxlog_dir
 
 bdr_resetxlog: bdr_resetxlog_dir $(RESETXLOG_OBJS)
-	$(CC) $(CFLAGS) $(RESETXLOG_OBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@$(X)
+	$(CC) $(CFLAGS) $(RESETXLOG_OBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) -o $@$(X)
 else
 RESETXLOG_OBJS := 
 RESETXLOG_LIBS :=
@@ -232,7 +235,7 @@ bdr_version.h: bdr_version.h.in
 bdr.o: bdr_version.h
 
 bdr_init_copy: bdr_init_copy.o bdr_common.o bdr_pgutils.o
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(LDFLAGS_EX) $(libpq_pgport) $(LIBS) -o $@$(X)
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(LDFLAGS_EX) $(libpq_pgport) -o $@$(X)
 
 scripts/bdr_initial_load: scripts/bdr_initial_load.in
 	@mkdir -p $(shell dirname $@)
@@ -270,7 +273,7 @@ pg_dump_dir:
 	mkdir -p $(BDR_DUMP_DIR)
 
 bdr_dump: pg_dump_dir $(DUMPOBJS)
-	$(CC) $(CFLAGS) $(DUMPOBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) $(BDR_DUMP_LIBS) -o $@$(X)
+	$(CC) $(CFLAGS) $(DUMPOBJS) $(libpq_pgport) $(LDFLAGS) $(LDFLAGS_EX) $(BDR_DUMP_LIBS) -o $@$(X)
 
 doc:
 	$(MAKE) -C doc all

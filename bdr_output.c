@@ -1030,7 +1030,7 @@ write_tuple(BdrOutputData *data, StringInfo out, Relation rel,
 		HeapTuple	typtup;
 		Form_pg_type typclass;
 
-		Form_pg_attribute att = desc->attrs[i];
+		Form_pg_attribute att = &desc->attrs[i];
 
 		bool use_binary = false;
 		bool use_sendrecv = false;

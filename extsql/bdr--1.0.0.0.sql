@@ -535,6 +535,11 @@ BEGIN
 		RETURNS boolean
 		LANGUAGE SQL
 		AS 'SELECT pg_replication_origin_session_is_setup()';
+	WHEN 1100 THEN
+                CREATE OR REPLACE FUNCTION bdr.bdr_replication_identifier_is_replaying()
+                RETURNS boolean
+                LANGUAGE SQL
+                AS 'SELECT pg_replication_origin_session_is_setup()';
 	ELSE
 		RAISE EXCEPTION 'Pg version % not supported', current_setting('server_version_num');
 	END CASE;
@@ -1011,7 +1016,7 @@ BEGIN
     INSERT INTO bdr.bdr_queued_commands
     (lsn, queued_at, perpetrator, command_tag, command)
     VALUES
-    (pg_current_xlog_insert_location(), current_timestamp, current_user,
+    (pg_current_wal_insert_lsn(), current_timestamp, current_user,
     'SELECT', 'SELECT bdr.bdr_connections_changed()');
 END;
 $body$;
@@ -1705,6 +1710,11 @@ BEGIN
 		SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
 		FROM pg_replication_slots;
 
+	WHEN 1100 THEN
+                CREATE VIEW bdr.pg_replication_slots AS
+                SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
+                FROM pg_replication_slots;
+
 	ELSE
 		RAISE EXCEPTION 'Pg version % not supported', current_setting('server_version_num');
 	END CASE;
@@ -2051,6 +2061,11 @@ BEGIN
     FROM pg_catalog.pg_replication_origin,
          bdr.bdr_parse_replident_name(roname) pi
     WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
+  WHEN 1100 THEN
+    PERFORM pg_replication_origin_drop(roname)
+    FROM pg_catalog.pg_replication_origin,
+         bdr.bdr_parse_replident_name(roname) pi
+    WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
   ELSE
     RAISE EXCEPTION 'Only PostgreSQL 9.4bdr and 9.6 are supported';
   END CASE;
@@ -2136,7 +2151,7 @@ SELECT n.node_name,
  s.slot_name, s.restart_lsn AS slot_restart_lsn, s.confirmed_flush_lsn AS slot_confirmed_lsn,
  s.active AS walsender_active,
  s.active_pid AS walsender_pid,
- r.sent_location, r.write_location, r.flush_location, r.replay_location
+ r.sent_lsn, r.write_lsn, r.flush_lsn, r.replay_lsn
 FROM
  bdr.pg_replication_slots s
  CROSS JOIN LATERAL bdr.bdr_parse_slot_name(s.slot_name) ps(remote_sysid, remote_timeline, remote_dboid, local_dboid, replication_name)

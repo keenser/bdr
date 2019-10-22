@@ -43,6 +43,7 @@
 #include "utils/guc.h"
 #include "utils/memutils.h"
 #include "utils/snapmgr.h"
+#include "utils/regproc.h"
 
 PGDLLEXPORT Datum bdr_get_apply_pid(PG_FUNCTION_ARGS);
 
@@ -277,7 +278,7 @@ bdr_maintain_db_workers(void)
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS |
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	bgw.bgw_main = NULL;
+	//bgw.bgw_main = NULL;
 	strncpy(bgw.bgw_library_name, BDR_LIBRARY_NAME, BGW_MAXLEN);
 	strncpy(bgw.bgw_function_name, "bdr_apply_main", BGW_MAXLEN);
 	bgw.bgw_restart_time = 5;
@@ -480,7 +481,7 @@ bdr_maintain_db_workers(void)
 			{
 				char *slot_name = (char *) lfirst(dc);
 				elog(DEBUG1, "dropping slot %s due to node part", slot_name);
-				ReplicationSlotDrop(slot_name);
+				ReplicationSlotDrop(slot_name, true);
 				elog(LOG, "dropped slot %s due to node part", slot_name);
 			}
 
@@ -931,7 +932,7 @@ bdr_perdb_worker_main(Datum main_arg)
 		{
 			rc = WaitLatch(&MyProc->procLatch,
 						   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-						   180000L);
+						   180000L, PG_WAIT_EXTENSION);
 
 			ResetLatch(&MyProc->procLatch);
 

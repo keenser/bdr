@@ -57,6 +57,7 @@
 #include "utils/pg_lsn.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "pgstat.h"
 
 
 char *bdr_temp_dump_directory = NULL;
@@ -72,7 +73,7 @@ bdr_get_remote_lsn(PGconn *conn)
 	XLogRecPtr  lsn;
 	PGresult   *res;
 
-	res = PQexec(conn, "SELECT pg_current_xlog_insert_location()");
+	res = PQexec(conn, "SELECT pg_current_wal_insert_lsn()");
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		elog(ERROR, "Unable to get remote LSN: status %s: %s\n",
@@ -214,7 +215,7 @@ bdr_init_exec_dump_restore(BDRNodeInfo *node,
 			 " relative to binary %s",
 			 my_exec_path);
 	}
-	if (bin_version / 100 != PG_VERSION_NUM / 100)
+	if (bin_version / 10000 != PG_VERSION_NUM / 10000)
 	{
 		elog(ERROR, "bdr node init found " BDR_INIT_REPLICA_CMD
 			 " with wrong major version %d.%d, expected %d.%d",
@@ -230,7 +231,7 @@ bdr_init_exec_dump_restore(BDRNodeInfo *node,
 			 " relative to binary %s",
 			 my_exec_path);
 	}
-	if (bin_version / 100 != PG_VERSION_NUM / 100)
+	if (bin_version / 10000 != PG_VERSION_NUM / 10000)
 	{
 		elog(ERROR, "bdr node init found " BDR_DUMP_CMD
 			 " with wrong major version %d.%d, expected %d.%d",
@@ -246,7 +247,7 @@ bdr_init_exec_dump_restore(BDRNodeInfo *node,
 			 " relative to binary %s",
 			 my_exec_path);
 	}
-	if (bin_version / 100 != PG_VERSION_NUM / 100)
+	if (bin_version / 10000 != PG_VERSION_NUM / 10000)
 	{
 		elog(ERROR, "bdr node init found " BDR_RESTORE_CMD
 			 " with wrong major version %d.%d, expected %d.%d",
@@ -863,7 +864,7 @@ bdr_wait_for_local_node_ready()
 
 		rc = WaitLatch(&MyProc->procLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   1000);
+					   1000, PG_WAIT_EXTENSION);
 
 		ResetLatch(&MyProc->procLatch);
 
@@ -1385,7 +1386,7 @@ bdr_catchup_to_lsn(remote_node_info *ri, XLogRecPtr target_lsn)
 		bgw.bgw_flags = BGWORKER_SHMEM_ACCESS |
 			BGWORKER_BACKEND_DATABASE_CONNECTION;
 		bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-		bgw.bgw_main = NULL;
+		//bgw.bgw_main = NULL;
 		strncpy(bgw.bgw_library_name, BDR_LIBRARY_NAME, BGW_MAXLEN);
 		strncpy(bgw.bgw_function_name, "bdr_apply_main", BGW_MAXLEN);
 
@@ -1418,7 +1419,7 @@ bdr_catchup_to_lsn(remote_node_info *ri, XLogRecPtr target_lsn)
 			int rc;
 			rc = WaitLatch(&MyProc->procLatch,
 						   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-						   1000L);
+						   1000L, PG_WAIT_EXTENSION);
 
 			ResetLatch(&MyProc->procLatch);
 

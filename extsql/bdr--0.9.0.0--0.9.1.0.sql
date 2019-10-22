@@ -179,7 +179,7 @@ BEGIN
     INSERT INTO bdr.bdr_queued_commands
     (lsn, queued_at, perpetrator, command_tag, command)
     VALUES
-    (pg_current_xlog_insert_location(), current_timestamp, current_user,
+    (pg_current_wal_insert_lsn(), current_timestamp, current_user,
     'SELECT', 'SELECT bdr.bdr_connections_changed()');
 END;
 $body$;

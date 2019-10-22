@@ -245,7 +245,7 @@ tuple_to_stringinfo(StringInfo s, TupleDesc tupdesc, HeapTuple tuple)
 		char	   *outputstr = NULL;
 		bool		isnull;		/* column is null? */
 
-		attr = tupdesc->attrs[natt];
+		attr = &tupdesc->attrs[natt];
 
 		/*
 		 * don't print dropped columns, we can't be sure everything is
@@ -559,7 +559,7 @@ bdr_conflict_log_table(BdrApplyConflict *conflict)
 
 	/* Prepare executor state for index updates */
 	log_estate = bdr_create_rel_estate(log_rel);
-	log_slot = ExecInitExtraTupleSlot(log_estate);
+	log_slot = ExecInitExtraTupleSlot(log_estate, NULL);
 	ExecSetSlotDescriptor(log_slot, RelationGetDescr(log_rel));
 	/* Construct the tuple and insert it */
 	log_tup = heap_form_tuple(RelationGetDescr(log_rel), values, nulls);

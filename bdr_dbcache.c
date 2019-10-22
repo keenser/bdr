@@ -29,6 +29,7 @@
 #include "utils/json.h"
 #include "utils/jsonb.h"
 #include "utils/syscache.h"
+#include "utils/builtins.h"
 
 /* Cache entry. */
 typedef struct BDRDatabaseCacheEntry
@@ -100,7 +101,7 @@ bdr_parse_database_options(const char *label, bool *is_active)
 	if (label == NULL)
 		return;
 
-	data = DatumGetJsonb(
+	data = DatumGetJsonbP(
 		DirectFunctionCall1(jsonb_in, CStringGetDatum(label)));
 
 	if (!JB_ROOT_IS_OBJECT(data))
