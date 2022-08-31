@@ -61,6 +61,7 @@
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
 #include "utils/typcache.h"
+#include "utils/varlena.h"
 #include "utils/snapmgr.h"
 
 #include "bdr_output_origin_filter.h"
