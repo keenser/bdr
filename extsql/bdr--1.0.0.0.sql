@@ -522,27 +522,19 @@ AS 'MODULE_PATHNAME'
 ---
 DO $DO$
 BEGIN
-	CASE current_setting('server_version_num')::int / 100
-	WHEN 904 THEN
+        IF (current_setting('server_version_num')::int / 100) < 905 THEN
 		-- 9.4 replication identifiers
 		CREATE OR REPLACE FUNCTION bdr.bdr_replication_identifier_is_replaying()
 		RETURNS boolean
 		LANGUAGE SQL
 		AS 'SELECT pg_replication_identifier_is_replaying()';
-	WHEN 906 THEN
-		-- 9.6 replication origins
+        ELSE
+		-- 9.5+ replication origins
 		CREATE OR REPLACE FUNCTION bdr.bdr_replication_identifier_is_replaying()
 		RETURNS boolean
 		LANGUAGE SQL
 		AS 'SELECT pg_replication_origin_session_is_setup()';
-	WHEN 1100 THEN
-                CREATE OR REPLACE FUNCTION bdr.bdr_replication_identifier_is_replaying()
-                RETURNS boolean
-                LANGUAGE SQL
-                AS 'SELECT pg_replication_origin_session_is_setup()';
-	ELSE
-		RAISE EXCEPTION 'Pg version % not supported', current_setting('server_version_num');
-	END CASE;
+        END IF;
 END;
 $DO$;
 
@@ -1674,8 +1666,7 @@ RETURNS void LANGUAGE c AS 'MODULE_PATHNAME' STRICT;
 --
 DO $DO$
 BEGIN
-	CASE current_setting('server_version_num')::int / 100
-	WHEN 904 THEN
+	IF (current_setting('server_version_num')::int / 100) < 906 THEN
 
 		CREATE OR REPLACE FUNCTION
 		bdr.pg_get_replication_slots(OUT slot_name name, OUT plugin name, OUT slot_type text, OUT datoid oid, OUT active boolean, OUT xmin xid, OUT catalog_xmin xid, OUT restart_lsn pg_lsn, OUT active_pid integer, OUT confirmed_flush_lsn pg_lsn)
@@ -1704,20 +1695,11 @@ BEGIN
 			FROM bdr.pg_get_replication_slots() AS L
 					LEFT JOIN pg_catalog.pg_database D ON (L.datoid = D.oid);
 
-	WHEN 906 THEN
-
-		CREATE VIEW bdr.pg_replication_slots AS
-		SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
-		FROM pg_replication_slots;
-
-	WHEN 1100 THEN
+        ELSE
                 CREATE VIEW bdr.pg_replication_slots AS
                 SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
                 FROM pg_replication_slots;
-
-	ELSE
-		RAISE EXCEPTION 'Pg version % not supported', current_setting('server_version_num');
-	END CASE;
+	END IF;
 END;
 $DO$;
 
@@ -2050,25 +2032,17 @@ BEGIN
   WHERE ps.local_dboid = (select oid from pg_database where datname = current_database());
 
   -- and replication origins/identifiers
-  CASE current_setting('server_version_num')::int / 100
-  WHEN 904 THEN
+  IF (current_setting('server_version_num')::int / 100) < 905 THEN
     PERFORM pg_replication_identifier_drop(riname)
     FROM pg_catalog.pg_replication_identifier,
          bdr.bdr_parse_replident_name(riname) pi
     WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
-  WHEN 906 THEN
-    PERFORM pg_replication_origin_drop(roname)
-    FROM pg_catalog.pg_replication_origin,
-         bdr.bdr_parse_replident_name(roname) pi
-    WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
-  WHEN 1100 THEN
-    PERFORM pg_replication_origin_drop(roname)
-    FROM pg_catalog.pg_replication_origin,
-         bdr.bdr_parse_replident_name(roname) pi
-    WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
   ELSE
-    RAISE EXCEPTION 'Only PostgreSQL 9.4bdr and 9.6 are supported';
-  END CASE;
+    PERFORM pg_replication_origin_drop(roname)
+    FROM pg_catalog.pg_replication_origin,
+         bdr.bdr_parse_replident_name(roname) pi
+    WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
+  END IF;
 
   -- Strip the security labels we use for replication sets from all the tables
   FOR _tableoid IN

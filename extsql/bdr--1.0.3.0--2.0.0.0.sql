@@ -412,6 +412,7 @@ SET bdr.skip_ddl_replication = on
 SET search_path = 'bdr,pg_catalog'
 AS $$
 DECLARE
+  version_number integer := current_setting('server_version_num')::int / 100;
   local_node_status "char";
   _seqschema name;
   _seqname name;
@@ -527,20 +528,17 @@ BEGIN
        AND plugin = 'bdr';
 
   -- and replication origins/identifiers
-  CASE current_setting('server_version_num')::int / 100
-  WHEN 904 THEN
+  IF version_number < 905 THEN
     PERFORM pg_replication_identifier_drop(riname)
     FROM pg_catalog.pg_replication_identifier,
          bdr.bdr_parse_replident_name(riname) pi
     WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
-  WHEN 906 THEN
+  ELSE
     PERFORM pg_replication_origin_drop(roname)
     FROM pg_catalog.pg_replication_origin,
          bdr.bdr_parse_replident_name(roname) pi
     WHERE pi.local_dboid = (select oid from pg_database where datname = current_database());
-  ELSE
-    RAISE EXCEPTION 'Only PostgreSQL 9.4bdr and 9.6 are supported';
-  END CASE;
+  END IF;
 
   -- Strip the security labels we use for replication sets from all the tables
   FOR _tableoid IN
