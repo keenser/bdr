@@ -118,7 +118,7 @@ main(int argc, char *argv[])
 	char	   *log_fname = NULL;
 	int			fd;
 
-	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("bdr_resetwal"));
+	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("bdr_resetxlog"));
 
 	progname = get_progname(argv[0]);
 
@@ -131,7 +131,7 @@ main(int argc, char *argv[])
 		}
 		if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)
 		{
-			puts("bdr_resetwal (PostgreSQL) " PG_VERSION);
+			puts("bdr_resetxlog (PostgreSQL) " PG_VERSION);
 			exit(0);
 		}
 	}
