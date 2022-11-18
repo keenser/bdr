@@ -132,10 +132,12 @@ bdr_find_other_exec(const char *argv0, const char *target,
 	if (!pipe_read_line(cmd, line, sizeof(line)))
 		return -1;
 
-	if (sscanf(line, "%*s %*s %d.%d", &pre_dot, &post_dot) != 2)
+	if (sscanf(line, "%*s %*s %2d.%2d", &pre_dot, &post_dot) != 2)
 		return -2;
 
-	*version = (pre_dot * 100 + post_dot) * 100;
+        // Should equal PG_VERSION_NUM from pg_config.h.
+        // In PG10+ post_dot is no longer part of the major version
+	*version = pre_dot * 10000 + post_dot * (pre_dot > 9 ? 1 : 100);
 
 	return 0;
 }
