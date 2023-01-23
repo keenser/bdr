@@ -89,6 +89,7 @@ bool bdr_discard_mismatched_row_attributes;
 bool bdr_trace_replay;
 int bdr_trace_ddl_locks_level;
 char *bdr_extra_apply_connection_options;
+bool bdr_enabled;
 
 PG_MODULE_MAGIC;
 
@@ -891,11 +892,19 @@ _PG_init(void)
 							   0,
 							   NULL, NULL, NULL);
 
+	DefineCustomBoolVariable("bdr.enabled",
+							   "Master switch to enable/disable the registration of BDR BG-Workers",
+							   NULL,
+							   &bdr_enabled,
+							   true,
+							   PGC_BACKEND,
+							   0, NULL, NULL, NULL);
+
 	EmitWarningsOnPlaceholders("bdr");
 
 	bdr_label_init();
 
-	if (!IsBinaryUpgrade)
+	if (!IsBinaryUpgrade && bdr_enabled)
 	{
 
 		bdr_supervisor_register();
@@ -910,6 +919,9 @@ _PG_init(void)
 
 		/* Set up a ProcessUtility_hook to stop unsupported commands being run */
 		init_bdr_commandfilter();
+	} else if (!bdr_enabled)
+	{
+		elog(INFO, "BDR is disabled - skipping the registration of BDR workers");
 	}
 
 	MemoryContextSwitchTo(old_context);
