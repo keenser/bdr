@@ -19,6 +19,10 @@
 #include "bdr.h"
 
 #include "access/xact.h"
+#include "access/skey.h"
+#include "access/genam.h"
+#include "access/table.h"
+#include "access/tableam.h"
 
 #include "catalog/indexing.h"
 #include "catalog/pg_namespace.h"
@@ -80,30 +84,29 @@ bdr_create_rel_estate(Relation rel)
 }
 
 void
-UserTableUpdateIndexes(EState *estate, TupleTableSlot *slot)
+UserTableUpdateIndexes(EState *estate, TupleTableSlot *slot, bool update_indexes)
 {
 	/* HOT update does not require index inserts */
-	if (HeapTupleIsHeapOnly(slot->tts_tuple))
+	if (update_indexes == false)
 		return;
 
 	ExecOpenIndices(estate->es_result_relation_info, false);
-	UserTableUpdateOpenIndexes(estate, slot);
+	UserTableUpdateOpenIndexes(estate, slot, update_indexes);
 	ExecCloseIndices(estate->es_result_relation_info);
 }
 
 void
-UserTableUpdateOpenIndexes(EState *estate, TupleTableSlot *slot)
+UserTableUpdateOpenIndexes(EState *estate, TupleTableSlot *slot, bool update_indexes)
 {
 	List	   *recheckIndexes = NIL;
 
 	/* HOT update does not require index inserts */
-	if (HeapTupleIsHeapOnly(slot->tts_tuple))
+	if (update_indexes == false)
 		return;
 
 	if (estate->es_result_relation_info->ri_NumIndices > 0)
 	{
 		recheckIndexes = ExecInsertIndexTuples(slot,
-											   		 &slot->tts_tuple->t_self,
 											   		 estate,
 													 false, NULL, NIL);
 
@@ -238,7 +241,6 @@ bool
 find_pkey_tuple(ScanKey skey, BDRRelation *rel, Relation idxrel,
 				TupleTableSlot *slot, bool lock, LockTupleMode mode)
 {
-	HeapTuple	scantuple;
 	bool		found;
 	IndexScanDesc scan;
 	SnapshotData snap;
@@ -254,7 +256,7 @@ retry:
 						   0);
 	index_rescan(scan, skey, RelationGetNumberOfAttributes(idxrel), NULL, 0);
 
-	if ((scantuple = index_getnext(scan, ForwardScanDirection)) != NULL)
+	if (index_getnext_slot(scan, ForwardScanDirection, slot))
 	{
 		found = true;
 		/*
@@ -262,8 +264,6 @@ retry:
 		 * any buffer pin, so it can live past the index scan. Any old tuple
 		 * from a prior loop is cleared first.
 		 */
-		/* FIXME: Improve TupleSlot to not require copying the whole tuple */
-		ExecStoreTuple(scantuple, slot, InvalidBuffer, false);
 		ExecMaterializeSlot(slot);
 
 		xwait = TransactionIdIsValid(snap.xmin) ?  snap.xmin : snap.xmax;
@@ -278,29 +278,23 @@ retry:
 
 	if (lock && found)
 	{
-		Buffer buf;
-		HeapUpdateFailureData hufd;
-		HTSU_Result res;
-		HeapTupleData locktup;
-
-		ItemPointerCopy(&slot->tts_tuple->t_self, &locktup.t_self);
+		TM_FailureData tmfd;
+		TM_Result res;
 
 		PushActiveSnapshot(GetLatestSnapshot());
 
-		res = heap_lock_tuple(rel->rel, &locktup, GetCurrentCommandId(false), mode,
+		res = table_tuple_lock(rel->rel, &(slot->tts_tid), GetLatestSnapshot(), slot, GetCurrentCommandId(false), mode,
 							  false /* wait */,
 							  false /* don't follow updates */,
-							  &buf, &hufd);
-		/* the tuple slot already has the buffer pinned */
-		ReleaseBuffer(buf);
+							  &tmfd);
 
 		PopActiveSnapshot();
 
 		switch (res)
 		{
-			case HeapTupleMayBeUpdated:
+			case TM_Ok:
 				break;
-			case HeapTupleUpdated:
+			case TM_Updated:
 				/* XXX: Improve handling here */
 				ereport(LOG,
 						(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
@@ -346,7 +340,7 @@ bdr_node_set_read_only_internal(char *node_name, bool read_only, bool force)
 	InitDirtySnapshot(SnapshotDirty);
 
 	rv = makeRangeVar("bdr", "bdr_nodes", -1);
-	rel = heap_openrv(rv, RowExclusiveLock);
+	rel = table_openrv(rv, RowExclusiveLock);
 
 	ScanKeyInit(&key,
 				get_attnum(rel->rd_id, "node_name"),
@@ -390,7 +384,7 @@ bdr_node_set_read_only_internal(char *node_name, bool read_only, bool force)
 	CommandCounterIncrement();
 
 	/* now release lock again,  */
-	heap_close(rel, RowExclusiveLock);
+	table_close(rel, RowExclusiveLock);
 
 	bdr_connections_changed(NULL);
 }
@@ -426,7 +420,7 @@ CreateWritableStmtTag(PlannedStmt *plannedstmt)
 	if (plannedstmt->commandType == CMD_SELECT)
 		return "DML"; /* SELECT INTO/WCTE */
 
-	return CreateCommandTag((Node *) plannedstmt);
+	return CreateCommandName((Node *) plannedstmt);
 }
 
 /*

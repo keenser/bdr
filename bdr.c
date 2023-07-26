@@ -27,6 +27,7 @@
 #include "access/commit_ts.h"
 #include "access/heapam.h"
 #include "access/xact.h"
+#include "access/table.h"
 
 #include "catalog/namespace.h"
 #include "catalog/pg_extension.h"
@@ -959,7 +960,7 @@ bdr_maintain_schema(bool update_extensions)
 							);
 
 	/* make sure we're operating without other bdr workers interfering */
-	extrel = heap_open(ExtensionRelationId, ShareUpdateExclusiveLock);
+	extrel = table_open(ExtensionRelationId, ShareUpdateExclusiveLock);
 
 	btree_gist_oid = get_extension_oid("btree_gist", true);
 	bdr_oid = get_extension_oid("bdr", true);
@@ -985,7 +986,7 @@ bdr_maintain_schema(bool update_extensions)
 		ExecAlterExtensionStmt(NULL, &alter_stmt);
 	}
 
-	heap_close(extrel, NoLock);
+	table_close(extrel, NoLock);
 
 	/* setup initial queued_cmds OID */
 	schema_oid = get_namespace_oid("bdr", false);

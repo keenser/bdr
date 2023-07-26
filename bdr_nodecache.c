@@ -24,6 +24,7 @@
 #include "utils/inval.h"
 #include "utils/memutils.h"
 #include "utils/lsyscache.h"
+#include "common/hashfn.h"
 
 /*
  * Caches for our name and (if we're an apply worker or walsender) our peer

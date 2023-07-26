@@ -229,7 +229,7 @@ CREATE TABLE bdr.bdr_conflict_handlers (
     ch_fun regprocedure NOT NULL,
     ch_timeframe INTERVAL,
     PRIMARY KEY(ch_reloid, ch_name)
-) WITH OIDS;
+);
 REVOKE ALL ON TABLE bdr_conflict_handlers FROM PUBLIC;
 SELECT pg_catalog.pg_extension_config_dump('bdr_conflict_handlers', '');
 
@@ -536,6 +536,11 @@ BEGIN
 		LANGUAGE SQL
 		AS 'SELECT pg_replication_origin_session_is_setup()';
 	WHEN 1100 THEN
+                CREATE OR REPLACE FUNCTION bdr.bdr_replication_identifier_is_replaying()
+                RETURNS boolean
+                LANGUAGE SQL
+                AS 'SELECT pg_replication_origin_session_is_setup()';
+	WHEN 1300 THEN
                 CREATE OR REPLACE FUNCTION bdr.bdr_replication_identifier_is_replaying()
                 RETURNS boolean
                 LANGUAGE SQL
@@ -1711,6 +1716,11 @@ BEGIN
 		FROM pg_replication_slots;
 
 	WHEN 1100 THEN
+                CREATE VIEW bdr.pg_replication_slots AS
+                SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
+                FROM pg_replication_slots;
+
+	WHEN 1300 THEN
                 CREATE VIEW bdr.pg_replication_slots AS
                 SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
                 FROM pg_replication_slots;

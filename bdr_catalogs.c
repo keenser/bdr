@@ -20,8 +20,11 @@
 #include "miscadmin.h"
 
 #include "access/xact.h"
+#include "access/genam.h"
+#include "access/table.h"
 
 #include "catalog/pg_type.h"
+#include "catalog/pg_namespace_d.h"
 
 #include "commands/dbcommands.h"
 
@@ -61,7 +64,7 @@ GetSysCacheOidError(int cacheId,
 	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failure in cache %d", cacheId);
-	result = HeapTupleGetOid(tuple);
+	result = ((Form_pg_type) GETSTRUCT(tuple))->oid;
 	ReleaseSysCache(tuple);
 	return result;
 }
@@ -100,7 +103,7 @@ bdr_nodes_get_local_status(const BDRNodeId * const node)
 	 *
 	 * Check for a bdr schema.
 	 */
-	schema_oid = GetSysCacheOid1(NAMESPACENAME, CStringGetDatum("bdr"));
+	schema_oid = GetSysCacheOid1(NAMESPACENAME, Anum_pg_namespace_oid, CStringGetDatum("bdr"));
 	if (schema_oid == InvalidOid)
 		ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				errmsg("No bdr schema is present in database %s, cannot create a bdr slot",
@@ -154,7 +157,7 @@ bdr_nodes_get_local_info(const BDRNodeId * const node)
 	sysid_str[sizeof(sysid_str)-1] = '\0';
 
 	rv = makeRangeVar("bdr", "bdr_nodes", -1);
-	rel = heap_openrv(rv, RowExclusiveLock);
+	rel = table_openrv(rv, RowExclusiveLock);
 
 	ScanKeyInit(&key[0],
 				1,
@@ -213,7 +216,7 @@ bdr_nodes_get_local_info(const BDRNodeId * const node)
 	}
 
 	systable_endscan(scan);
-	heap_close(rel, RowExclusiveLock);
+	table_close(rel, RowExclusiveLock);
 
 	return nodeinfo;
 }
@@ -233,7 +236,7 @@ bdr_get_node_identity_by_name(const char *node_name, BDRNodeId * const nodeid)
 	bool		found = false;
 
 	rv = makeRangeVar("bdr", "bdr_nodes", -1);
-	rel = heap_openrv(rv, RowExclusiveLock);
+	rel = table_openrv(rv, RowExclusiveLock);
 
 	ScanKeyInit(&key[0],
 				5, /* node_name attno */
@@ -272,7 +275,7 @@ bdr_get_node_identity_by_name(const char *node_name, BDRNodeId * const nodeid)
 	}
 
 	systable_endscan(scan);
-	heap_close(rel, RowExclusiveLock);
+	table_close(rel, RowExclusiveLock);
 
 	return found;
 }

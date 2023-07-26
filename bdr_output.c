@@ -22,8 +22,8 @@
 #include "miscadmin.h"
 
 #include "access/sysattr.h"
-#include "access/tuptoaster.h"
 #include "access/xact.h"
+#include "access/detoast.h"
 
 #include "catalog/catversion.h"
 #include "catalog/index.h"
@@ -60,6 +60,7 @@
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
 #include "utils/typcache.h"
+#include "utils/varlena.h"
 
 #include "bdr_output_origin_filter.h"
 
@@ -222,7 +223,7 @@ bdr_parse_identifier_list_arr(DefElem *elem, char ***list, int *len)
 
 	bdr_parse_notnull(elem, "list");
 
-	if (!SplitIdentifierString(pstrdup(strVal(elem->arg)),
+	if (!SplitGUCList(pstrdup(strVal(elem->arg)),
 							  ',', &namelist))
 	{
 		ereport(ERROR,
@@ -1030,7 +1031,7 @@ write_tuple(BdrOutputData *data, StringInfo out, Relation rel,
 		HeapTuple	typtup;
 		Form_pg_type typclass;
 
-		Form_pg_attribute att = &desc->attrs[i];
+		Form_pg_attribute att = TupleDescAttr(desc, i);
 
 		bool use_binary = false;
 		bool use_sendrecv = false;

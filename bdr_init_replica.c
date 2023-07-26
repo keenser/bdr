@@ -35,6 +35,7 @@
 
 #include "access/heapam.h"
 #include "access/xact.h"
+#include "access/table.h"
 
 #include "catalog/pg_type.h"
 
@@ -627,8 +628,6 @@ bdr_init_wait_for_slot_creation()
 {
 	List	   *configs;
 	ListCell   *lc;
-	ListCell   *next,
-			   *prev;
 
 	BDRNodeId	myid;
 	bdr_make_my_nodeid(&myid);
@@ -643,24 +642,20 @@ bdr_init_wait_for_slot_creation()
 	configs = bdr_read_connection_configs();
 
 	/* Cleanup the config list from the ones we are not insterested in. */
-	prev = NULL;
-	for (lc = list_head(configs); lc; lc = next)
+	foreach(lc, configs)
 	{
 		BdrConnectionConfig *cfg = lfirst(lc);
 
 		/* We might delete the cell so advance it now. */
-		next = lnext(lc);
 
 		/*
 		 * We won't see an inbound slot from our own node.
 		 */
 		if (bdr_nodeid_eq(&cfg->remote_node, &myid))
 		{
-			configs = list_delete_cell(configs, lc, prev);
+			configs = foreach_delete_current(configs, lc);
 			break;
 		}
-		else
-			prev = lc;
 	}
 
 	/*
@@ -919,9 +914,9 @@ bdr_init_standalone_node(BDRNodeInfo *local_node)
 	Assert(local_node->init_from_dsn == NULL);
 
 	StartTransactionCommand();
-	rel = heap_open(BdrNodesRelid, ExclusiveLock);
+	rel = table_open(BdrNodesRelid, ExclusiveLock);
 	bdr_nodes_set_local_attrs(BDR_NODE_STATUS_READY, BDR_NODE_STATUS_BEGINNING_INIT, &seq_id);
-	heap_close(rel, ExclusiveLock);
+	table_close(rel, ExclusiveLock);
 	CommitTransactionCommand();
 }
 

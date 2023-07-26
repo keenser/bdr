@@ -17,6 +17,9 @@
 #include "funcapi.h"
 
 #include "access/xact.h"
+#include "access/table.h"
+#include "access/tableam.h"
+#include "access/htup_details.h"
 
 #include "catalog/index.h"
 #include "catalog/namespace.h"
@@ -39,6 +42,13 @@
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
+#define HeapTupleHeaderGetOidOld(tup) \
+( \
+       ((tup)->t_infomask & HEAP_HASOID_OLD) ? \
+          *((Oid *) ((char *)(tup) + (tup)->t_hoff - sizeof(Oid))) \
+       : \
+               InvalidOid \
+)
 
 /* GUCs */
 bool bdr_log_conflicts_to_table = false;
@@ -130,7 +140,7 @@ bdr_conflict_type_get_datum(BdrConflictType conflict_type)
 			break;
 	}
 	Assert(enumname != NULL);
-	conflict_type_oid = GetSysCacheOid2(ENUMTYPOIDNAME,
+	conflict_type_oid = GetSysCacheOid2(ENUMTYPOIDNAME, Anum_pg_type_oid,
 		BdrConflictTypeOid, CStringGetDatum(enumname));
 	if (conflict_type_oid == InvalidOid)
 		elog(ERROR, "syscache lookup for enum %s of type "
@@ -181,7 +191,7 @@ bdr_conflict_resolution_get_datum(BdrConflictResolution conflict_resolution)
 
 	char *enumname = bdr_conflict_resolution_get_name(conflict_resolution);
 
-	conflict_resolution_oid = GetSysCacheOid2(ENUMTYPOIDNAME,
+	conflict_resolution_oid = GetSysCacheOid2(ENUMTYPOIDNAME, Anum_pg_type_oid,
 		BdrConflictResolutionOid, CStringGetDatum(enumname));
 	if (conflict_resolution_oid == InvalidOid)
 		elog(ERROR, "syscache lookup for enum %s of type "
@@ -226,7 +236,7 @@ tuple_to_stringinfo(StringInfo s, TupleDesc tupdesc, HeapTuple tuple)
 	Oid			oid;
 
 	/* print oid of tuple, it's not included in the TupleDesc */
-	if ((oid = HeapTupleHeaderGetOid(tuple->t_data)) != InvalidOid)
+	if ((oid = HeapTupleHeaderGetOidOld(tuple->t_data)) != InvalidOid)
 	{
 		appendStringInfo(s, " oid[oid]:%u", oid);
 	}
@@ -555,20 +565,20 @@ bdr_conflict_log_table(BdrApplyConflict *conflict)
 	 * Construct a bdr.bdr_conflict_history tuple from the conflict info we've
 	 * been passed and insert it into bdr.bdr_conflict_history.
 	 */
-	log_rel = heap_open(BdrConflictHistoryRelId, RowExclusiveLock);
+	log_rel = table_open(BdrConflictHistoryRelId, RowExclusiveLock);
 
 	/* Prepare executor state for index updates */
 	log_estate = bdr_create_rel_estate(log_rel);
-	log_slot = ExecInitExtraTupleSlot(log_estate, NULL);
+	log_slot = ExecInitExtraTupleSlot(log_estate, NULL, &TTSOpsMinimalTuple);
 	ExecSetSlotDescriptor(log_slot, RelationGetDescr(log_rel));
 	/* Construct the tuple and insert it */
 	log_tup = heap_form_tuple(RelationGetDescr(log_rel), values, nulls);
-	ExecStoreTuple(log_tup, log_slot, InvalidBuffer, true);
-	simple_heap_insert(log_rel, log_slot->tts_tuple);
+	ExecStoreHeapTuple(log_tup, log_slot, true);
+	simple_table_tuple_insert(log_rel, log_slot);
 	/* Then do any index maintanence required */
-	UserTableUpdateIndexes(log_estate, log_slot);
+	UserTableUpdateIndexes(log_estate, log_slot, true);
 	/* and finish up */
-	heap_close(log_rel, RowExclusiveLock);
+	table_close(log_rel, RowExclusiveLock);
 	ExecResetTupleTable(log_estate->es_tupleTable, true);
 	FreeExecutorState(log_estate);
 }
@@ -681,14 +691,15 @@ bdr_make_apply_conflict(BdrConflictType conflict_type,
 
 	if (local_tuple != NULL)
 	{
+		HeapTuple local_tts_tuple = local_tuple->tts_ops->get_heap_tuple(local_tuple);
 		/* Log local tuple xmin even if actual tuple value logging is off */
 		conflict->local_tuple_xmin =
-			HeapTupleHeaderGetXmin(local_tuple->tts_tuple->t_data);
+			HeapTupleHeaderGetXmin(local_tts_tuple->t_data);
 		Assert(conflict->local_tuple_xmin >= FirstNormalTransactionId ||
 			   conflict->local_tuple_xmin == FrozenTransactionId);
 		if (bdr_conflict_logging_include_tuples)
 		{
-			conflict->local_tuple = ExecFetchSlotTupleDatum(local_tuple);
+			conflict->local_tuple = ExecFetchSlotHeapTupleDatum(local_tuple);
 			conflict->local_tuple_null = false;
 		}
 	}
@@ -714,7 +725,7 @@ bdr_make_apply_conflict(BdrConflictType conflict_type,
 
 	if (remote_tuple != NULL && bdr_conflict_logging_include_tuples)
 	{
-		conflict->remote_tuple = ExecFetchSlotTupleDatum(remote_tuple);
+		conflict->remote_tuple = ExecFetchSlotHeapTupleDatum(remote_tuple);
 		conflict->remote_tuple_null = false;
 	}
 	else

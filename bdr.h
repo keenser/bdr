@@ -469,9 +469,11 @@ extern RepOriginId bdr_fetch_node_id_via_sysid(const BDRNodeId * const node);
 /* Index maintenance, heap access, etc */
 extern struct EState * bdr_create_rel_estate(Relation rel);
 extern void UserTableUpdateIndexes(struct EState *estate,
-								   struct TupleTableSlot *slot);
+								   struct TupleTableSlot *slot,
+								   bool update_indexes);
 extern void UserTableUpdateOpenIndexes(struct EState *estate,
-									   struct TupleTableSlot *slot);
+									   struct TupleTableSlot *slot,
+									   bool update_indexes);
 extern void build_index_scan_keys(struct EState *estate,
 								  struct ScanKeyData **scan_keys,
 								  BDRTupleData *tup);

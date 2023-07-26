@@ -43,6 +43,7 @@
 #include "utils/syscache.h"
 #include "utils/rel.h"
 #include "utils/regproc.h"
+#include "utils/acl.h"
 
 PG_FUNCTION_INFO_V1(bdr_create_conflict_handler);
 PG_FUNCTION_INFO_V1(bdr_drop_conflict_handler);
@@ -193,7 +194,7 @@ bdr_create_conflict_handler(PG_FUNCTION_ARGS)
 	 *
 	 * XXX why SUE?  Wouldn't AccessShare be sufficient for that?
 	 */
-	rel = heap_open(reloid, ShareUpdateExclusiveLock);
+	rel = table_open(reloid, ShareUpdateExclusiveLock);
 
 	/* ensure that handler function is good */
 	bdr_conflict_handlers_check_handler_fun(rel, proc_oid);
@@ -248,7 +249,7 @@ bdr_create_conflict_handler(PG_FUNCTION_ARGS)
 	 */
 
 	myself.classId = bdr_conflict_handler_table_oid;
-	myself.objectId = SPI_lastoid;
+	//myself.objectId = SPI_lastoid;
 	myself.objectSubId = 0;
 
 	rel_object.classId = RelationRelationId;
@@ -287,7 +288,7 @@ bdr_create_conflict_handler(PG_FUNCTION_ARGS)
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
 
-	heap_close(rel, NoLock);
+	table_close(rel, NoLock);
 
 	AtEOXact_GUC(false, guc_nestlevel);
 
@@ -353,7 +354,7 @@ bdr_drop_conflict_handler(PG_FUNCTION_ARGS)
 
 	bdr_conflict_handlers_check_access(ch_relid);
 
-	rel = heap_open(ch_relid, ShareUpdateExclusiveLock);
+	rel = table_open(ch_relid, ShareUpdateExclusiveLock);
 
 	if (SPI_connect() != SPI_OK_CONNECT)
 		elog(ERROR, "SPI_connect failed");
@@ -417,7 +418,7 @@ bdr_drop_conflict_handler(PG_FUNCTION_ARGS)
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
 
-	heap_close(rel, NoLock);
+	table_close(rel, NoLock);
 
 	AtEOXact_GUC(false, guc_nestlevel);
 
@@ -678,7 +679,7 @@ bdr_conflict_handlers_resolve(BDRRelation * rel, const HeapTuple local,
 {
 	size_t		i;
 	Datum		retval;
-	FunctionCallInfoData fcinfo;
+	LOCAL_FCINFO(fcinfo, 5);
 	FmgrInfo	finfo;
 	HeapTuple	fun_tup;
 	HeapTupleData result_tup;
@@ -709,38 +710,38 @@ bdr_conflict_handlers_resolve(BDRRelation * rel, const HeapTuple local,
 			continue;
 
 		fmgr_info(rel->conflict_handlers[i].handler_oid, &finfo);
-		InitFunctionCallInfoData(fcinfo, &finfo, 5, InvalidOid, NULL, NULL);
+		InitFunctionCallInfoData(*fcinfo, &finfo, 5, InvalidOid, NULL, NULL);
 
 		if (local != NULL)
 		{
-			fcinfo.arg[0] =
+			fcinfo->args[0].value =
 				heap_copy_tuple_as_datum(local, RelationGetDescr(rel->rel));
-			fcinfo.argnull[0] = false;
+			fcinfo->args[0].isnull = false;
 		}
 		else
-			fcinfo.argnull[0] = true;
+			fcinfo->args[0].isnull = true;
 
 		if (remote != NULL)
 		{
-			fcinfo.arg[1] =
+			fcinfo->args[1].value =
 				heap_copy_tuple_as_datum(remote, RelationGetDescr(rel->rel));
-			fcinfo.argnull[1] = false;
+			fcinfo->args[1].isnull = false;
 		}
 		else
-			fcinfo.argnull[1] = true;
+			fcinfo->args[1].isnull = true;
 
-		fcinfo.arg[2] = CStringGetTextDatum(command_tag);
-		fcinfo.arg[3] = ObjectIdGetDatum(RelationGetRelid(rel->rel));
-		fcinfo.arg[4] = event_oid;
+		fcinfo->args[2].value = CStringGetTextDatum(command_tag);
+		fcinfo->args[3].value = ObjectIdGetDatum(RelationGetRelid(rel->rel));
+		fcinfo->args[4].value = event_oid;
 
-		retval = FunctionCallInvoke(&fcinfo);
+		retval = FunctionCallInvoke(fcinfo);
 
-		if (!fcinfo.argnull[0])
-			heap_freetuple((HeapTuple) DatumGetPointer(fcinfo.arg[0]));
-		if (!fcinfo.argnull[1])
-			heap_freetuple((HeapTuple) DatumGetPointer(fcinfo.arg[1]));
+		if (!fcinfo->args[0].isnull)
+			heap_freetuple((HeapTuple) DatumGetPointer(fcinfo->args[0].value));
+		if (!fcinfo->args[1].isnull)
+			heap_freetuple((HeapTuple) DatumGetPointer(fcinfo->args[1].value));
 
-		if (fcinfo.isnull)
+		if (fcinfo->isnull)
 			elog(ERROR, "handler return value is NULL");
 
 		tup_header = DatumGetHeapTupleHeader(retval);

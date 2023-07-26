@@ -27,6 +27,12 @@
 #include "access/htup_details.h"
 #include "access/relscan.h"
 #include "access/xact.h"
+#include "access/skey.h"
+#include "access/relation.h"
+#include "access/tableam.h"
+#include "access/table.h"
+#include "access/genam.h"
+#include "access/heapam.h"
 
 #include "catalog/catversion.h"
 #include "catalog/dependency.h"
@@ -634,8 +640,8 @@ process_remote_insert(StringInfo s)
 			 action);
 
 	estate = bdr_create_rel_estate(rel->rel);
-	newslot = ExecInitExtraTupleSlot(estate, NULL);
-	oldslot = ExecInitExtraTupleSlot(estate, NULL);
+	newslot = ExecInitExtraTupleSlot(estate, NULL, &TTSOpsHeapTuple);
+	oldslot = ExecInitExtraTupleSlot(estate, NULL, &TTSOpsHeapTuple);
 	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
 	ExecSetSlotDescriptor(oldslot, RelationGetDescr(rel->rel));
 
@@ -644,7 +650,7 @@ process_remote_insert(StringInfo s)
 		HeapTuple tup;
 		tup = heap_form_tuple(RelationGetDescr(rel->rel),
 							  new_tuple.values, new_tuple.isnull);
-		ExecStoreTuple(tup, newslot, InvalidBuffer, true);
+		ExecStoreHeapTuple(tup, newslot, true);
 	}
 
 	if (rel->rel->rd_rel->relkind != RELKIND_RELATION)
@@ -695,7 +701,7 @@ process_remote_insert(StringInfo s)
 		/* alert if there's more than one conflicting unique key */
 		if (found &&
 			ItemPointerIsValid(&conflicting_tid) &&
-			!ItemPointerEquals(&oldslot->tts_tuple->t_self,
+			!ItemPointerEquals(&oldslot->tts_tid,
 							   &conflicting_tid))
 		{
 			/* TODO: Report tuple identity in log */
@@ -710,7 +716,7 @@ process_remote_insert(StringInfo s)
 		}
 		else if (found)
 		{
-			ItemPointerCopy(&oldslot->tts_tuple->t_self, &conflicting_tid);
+			ItemPointerCopy(&oldslot->tts_tid, &conflicting_tid);
 			conflict = true;
 			break;
 		}
@@ -735,8 +741,10 @@ process_remote_insert(StringInfo s)
 		HeapTuple	user_tuple = NULL;
 		BdrApplyConflict *apply_conflict = NULL; /* Mute compiler */
 		BdrConflictResolution resolution;
+		HeapTuple old_tts_tuple = oldslot->tts_ops->get_heap_tuple(oldslot);
+		HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
 
-		get_local_tuple_origin(oldslot->tts_tuple, &local_ts, &local_node_id);
+		get_local_tuple_origin(old_tts_tuple, &local_ts, &local_node_id);
 
 		/*
 		 * Use conflict triggers and/or last-update-wins to decide which tuple
@@ -744,7 +752,7 @@ process_remote_insert(StringInfo s)
 		 */
 		check_apply_update(BdrConflictType_InsertInsert,
 						   local_node_id, local_ts, rel,
-						   oldslot->tts_tuple, newslot->tts_tuple, &user_tuple,
+						   old_tts_tuple, new_tts_tuple, &user_tuple,
 						   &apply_update, &log_update, &resolution);
 
 		/*
@@ -767,6 +775,7 @@ process_remote_insert(StringInfo s)
 		 */
 		if (apply_update)
 		{
+			bool		update_indexes;
 			/*
 			 * User specified conflict handler provided a new tuple; form it to
 			 * a bdr tuple.
@@ -776,14 +785,15 @@ process_remote_insert(StringInfo s)
 #ifdef VERBOSE_INSERT
 				log_tuple("USER tuple:%s", RelationGetDescr(rel->rel), user_tuple);
 #endif
-				ExecStoreTuple(user_tuple, newslot, InvalidBuffer, true);
+				ExecStoreHeapTuple(user_tuple, newslot, true);
 			}
 
-			simple_heap_update(rel->rel,
-							   &oldslot->tts_tuple->t_self,
-							   newslot->tts_tuple);
+			simple_table_tuple_update(rel->rel,
+							   &oldslot->tts_tid,
+							   newslot, estate->es_snapshot,
+							   &update_indexes);
 			/* races will be resolved by abort/retry */
-			UserTableUpdateOpenIndexes(estate, newslot);
+			UserTableUpdateOpenIndexes(estate, newslot, update_indexes);
 
 			bdr_count_insert();
 		}
@@ -797,8 +807,9 @@ process_remote_insert(StringInfo s)
 	}
 	else
 	{
-		simple_heap_insert(rel->rel, newslot->tts_tuple);
-		UserTableUpdateOpenIndexes(estate, newslot);
+		//HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
+		simple_table_tuple_insert(rel->rel, newslot);
+		UserTableUpdateOpenIndexes(estate, newslot, true);
 		bdr_count_insert();
 	}
 
@@ -817,6 +828,7 @@ process_remote_insert(StringInfo s)
 		TransactionId oldxid = GetTopTransactionId();
 		Oid relid = RelationGetRelid(rel->rel);
 		Relation qrel;
+		HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
 
 		/* there never should be conflicts on these */
 		Assert(!conflict);
@@ -827,7 +839,7 @@ process_remote_insert(StringInfo s)
 		 * Release transaction bound resources for CONCURRENTLY support.
 		 */
 		MemoryContextSwitchTo(MessageContext);
-		ht = heap_copytuple(newslot->tts_tuple);
+		ht = heap_copytuple(new_tts_tuple);
 
 		LockRelationIdForSession(&lockid, RowExclusiveLock);
 		bdr_heap_close(rel, NoLock);
@@ -846,11 +858,11 @@ process_remote_insert(StringInfo s)
 			process_queued_drop(ht);
 		}
 
-		qrel = heap_open(QueuedDDLCommandsRelid, RowExclusiveLock);
+		qrel = table_open(QueuedDDLCommandsRelid, RowExclusiveLock);
 
 		UnlockRelationIdForSession(&lockid, RowExclusiveLock);
 
-		heap_close(qrel, NoLock);
+		table_close(qrel, NoLock);
 
 		if (oldxid != GetTopTransactionId())
 		{
@@ -924,10 +936,8 @@ process_remote_update(StringInfo s)
 			 action);
 
 	estate = bdr_create_rel_estate(rel->rel);
-	oldslot = ExecInitExtraTupleSlot(estate, NULL);
-	ExecSetSlotDescriptor(oldslot, RelationGetDescr(rel->rel));
-	newslot = ExecInitExtraTupleSlot(estate, NULL);
-	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
+	oldslot = table_slot_create(rel->rel, &estate->es_tupleTable);
+	newslot = table_slot_create(rel->rel, &estate->es_tupleTable);
 
 	if (action == 'K')
 	{
@@ -984,20 +994,22 @@ process_remote_update(StringInfo s)
 		bool		log_update;
 		BdrApplyConflict *apply_conflict = NULL; /* Mute compiler */
 		BdrConflictResolution resolution;
+		HeapTuple old_tts_tuple = oldslot->tts_ops->get_heap_tuple(oldslot);
+		HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
 
-		remote_tuple = heap_modify_tuple(oldslot->tts_tuple,
+		remote_tuple = heap_modify_tuple(old_tts_tuple,
 										 RelationGetDescr(rel->rel),
 										 new_tuple.values,
 										 new_tuple.isnull,
 										 new_tuple.changed);
 
-		ExecStoreTuple(remote_tuple, newslot, InvalidBuffer, true);
+		ExecStoreHeapTuple(remote_tuple, newslot, true);
 
 #ifdef VERBOSE_UPDATE
 		{
 			StringInfoData o;
 			initStringInfo(&o);
-			tuple_to_stringinfo(&o, RelationGetDescr(rel->rel), oldslot->tts_tuple);
+			tuple_to_stringinfo(&o, RelationGetDescr(rel->rel), old_tts_tuple);
 			appendStringInfo(&o, " to");
 			tuple_to_stringinfo(&o, RelationGetDescr(rel->rel), remote_tuple);
 			elog(DEBUG1, "UPDATE:%s", o.data);
@@ -1005,7 +1017,7 @@ process_remote_update(StringInfo s)
 		}
 #endif
 
-		get_local_tuple_origin(oldslot->tts_tuple, &local_ts, &local_node_id);
+		get_local_tuple_origin(old_tts_tuple, &local_ts, &local_node_id);
 
 		/*
 		 * Use conflict triggers and/or last-update-wins to decide which tuple
@@ -1013,7 +1025,7 @@ process_remote_update(StringInfo s)
 		 */
 		check_apply_update(BdrConflictType_UpdateUpdate,
 						   local_node_id, local_ts, rel,
-						   oldslot->tts_tuple, newslot->tts_tuple,
+						   old_tts_tuple, new_tts_tuple,
 						   &user_tuple, &apply_update,
 						   &log_update, &resolution);
 
@@ -1034,6 +1046,7 @@ process_remote_update(StringInfo s)
 
 		if (apply_update)
 		{
+			bool update_indexes;
 			/*
 			 * User specified conflict handler provided a new tuple; form it to
 			 * a bdr tuple.
@@ -1043,11 +1056,11 @@ process_remote_update(StringInfo s)
 #ifdef VERBOSE_UPDATE
 				log_tuple("USER tuple:%s", RelationGetDescr(rel->rel), user_tuple);
 #endif
-				ExecStoreTuple(user_tuple, newslot, InvalidBuffer, true);
+				ExecStoreHeapTuple(user_tuple, newslot, true);
 			}
 
-			simple_heap_update(rel->rel, &oldslot->tts_tuple->t_self, newslot->tts_tuple);
-			UserTableUpdateIndexes(estate, newslot);
+			simple_table_tuple_update(rel->rel, &oldslot->tts_tid, newslot, estate->es_snapshot, &update_indexes);
+			UserTableUpdateIndexes(estate, newslot, update_indexes);
 			bdr_count_update();
 		}
 
@@ -1074,7 +1087,7 @@ process_remote_update(StringInfo s)
 									   new_tuple.values,
 									   new_tuple.isnull);
 
-		ExecStoreTuple(remote_tuple, newslot, InvalidBuffer, true);
+		ExecStoreHeapTuple(remote_tuple, newslot, true);
 
 		user_tuple = bdr_conflict_handlers_resolve(rel, NULL,
 												   remote_tuple, "UPDATE",
@@ -1106,10 +1119,10 @@ process_remote_update(StringInfo s)
 #ifdef VERBOSE_UPDATE
 			log_tuple("USER tuple:%s", RelationGetDescr(rel->rel), user_tuple);
 #endif
-			ExecStoreTuple(user_tuple, newslot, InvalidBuffer, true);
+			ExecStoreHeapTuple(user_tuple, newslot, true);
 
-			simple_heap_insert(rel->rel, newslot->tts_tuple);
-			UserTableUpdateOpenIndexes(estate, newslot);
+			simple_table_tuple_insert(rel->rel, newslot);
+			UserTableUpdateOpenIndexes(estate, newslot, true);
 		}
 
 		bdr_conflict_log_table(apply_conflict);
@@ -1187,8 +1200,7 @@ process_remote_delete(StringInfo s)
 	}
 
 	estate = bdr_create_rel_estate(rel->rel);
-	oldslot = ExecInitExtraTupleSlot(estate, NULL);
-	ExecSetSlotDescriptor(oldslot, RelationGetDescr(rel->rel));
+	oldslot = table_slot_create(rel->rel, &estate->es_tupleTable);
 
 	read_tuple_parts(s, rel, &oldtup);
 
@@ -1215,7 +1227,7 @@ process_remote_delete(StringInfo s)
 		HeapTuple tup;
 		tup = heap_form_tuple(RelationGetDescr(rel->rel),
 							  oldtup.values, oldtup.isnull);
-		ExecStoreTuple(tup, oldslot, InvalidBuffer, true);
+		ExecStoreHeapTuple(tup, oldslot, true);
 	}
 	log_tuple("DELETE old-key:%s", RelationGetDescr(rel->rel), oldslot->tts_tuple);
 #endif
@@ -1229,7 +1241,7 @@ process_remote_delete(StringInfo s)
 
 	if (found_old)
 	{
-		simple_heap_delete(rel->rel, &oldslot->tts_tuple->t_self);
+		simple_heap_delete(rel->rel, &oldslot->tts_tid);
 		bdr_count_delete();
 	}
 	else
@@ -1258,7 +1270,7 @@ process_remote_delete(StringInfo s)
 		/* Since the local tuple is missing, fill slot from the received data. */
 		remote_tuple = heap_form_tuple(RelationGetDescr(rel->rel),
 									   oldtup.values, oldtup.isnull);
-		ExecStoreTuple(remote_tuple, oldslot, InvalidBuffer, true);
+		ExecStoreHeapTuple(remote_tuple, oldslot, true);
 
 		/*
 		 * Trigger user specified conflict handler so that application may
@@ -1557,7 +1569,7 @@ bdr_execute_ddl_command(char *cmdstr, char *perpetrator, char *search_path,
 		List	   *plantree_list;
 		List	   *querytree_list;
 		RawStmt	   *command = lfirst_node(RawStmt, command_i);
-		const char *commandTag;
+		CommandTag commandTag;
 		Portal		portal;
 		DestReceiver *receiver;
 
@@ -1578,7 +1590,7 @@ bdr_execute_ddl_command(char *cmdstr, char *perpetrator, char *search_path,
 			command, cmdstr, NULL, 0, NULL);
 
 		plantree_list = pg_plan_queries(
-			querytree_list, 0, NULL);
+			querytree_list, cmdstr, 0, NULL);
 
 		PopActiveSnapshot();
 
@@ -1638,7 +1650,7 @@ process_queued_ddl_command(HeapTuple cmdtup, bool tx_just_started)
 	 */
 	oldcontext = MemoryContextSwitchTo(MessageContext);
 
-	cmdsrel = heap_open(QueuedDDLCommandsRelid, NoLock);
+	cmdsrel = table_open(QueuedDDLCommandsRelid, NoLock);
 
 	/* fetch the perpetrator user identifier */
 	datum = heap_getattr(cmdtup, 3,
@@ -1683,7 +1695,7 @@ process_queued_ddl_command(HeapTuple cmdtup, bool tx_just_started)
 		search_path = TextDatumGetCString(datum);
 
 	/* close relation, command execution might end/start xact */
-	heap_close(cmdsrel, NoLock);
+	table_close(cmdsrel, NoLock);
 
 	MemoryContextSwitchTo(oldcontext);
 
@@ -1765,7 +1777,7 @@ process_queued_drop(HeapTuple cmdtup)
 	ObjectAddresses *addresses;
 	ErrorContextCallback errcallback;
 
-	cmdsrel = heap_open(QueuedDropsRelid, AccessShareLock);
+	cmdsrel = table_open(QueuedDropsRelid, AccessShareLock);
 	arrayDatum = heap_getattr(cmdtup, 3,
 							  RelationGetDescr(cmdsrel),
 							  &null);
@@ -1979,7 +1991,7 @@ process_queued_drop(HeapTuple cmdtup)
 
 	newtup = cmdtup;
 
-	heap_close(cmdsrel, AccessShareLock);
+	table_close(cmdsrel, AccessShareLock);
 
 	return newtup;
 }
@@ -2056,7 +2068,7 @@ read_tuple_parts(StringInfo s, BDRRelation *rel, BDRTupleData *tup)
 	/* Consume remote data as long as there's a local column to put it in */
 	for (i = 0; i < Min(desc->natts, rnatts); i++)
 	{
-		Form_pg_attribute att = &desc->attrs[i];
+		Form_pg_attribute att = TupleDescAttr(desc, i);
 		char		kind;
 		const char *data;
 		int			len;
@@ -2143,7 +2155,7 @@ read_tuple_parts(StringInfo s, BDRRelation *rel, BDRTupleData *tup)
 	 */
 	for (i = rnatts; i < desc->natts; i++)
 	{
-		Form_pg_attribute att = &desc->attrs[i];
+		Form_pg_attribute att = TupleDescAttr(desc, i);
 
 		/*
 		 * If the remote-missing attribute(s) are locally dropped or nullable,

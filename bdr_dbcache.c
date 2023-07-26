@@ -22,10 +22,11 @@
 #include "catalog/pg_database.h"
 
 #include "commands/seclabel.h"
+#include "common/hashfn.h"
 
 #include "utils/catcache.h"
 #include "utils/inval.h"
-#include "utils/jsonapi.h"
+#include "common/jsonapi.h"
 #include "utils/json.h"
 #include "utils/jsonb.h"
 #include "utils/syscache.h"

@@ -16,6 +16,8 @@
 #include "bdr.h"
 
 #include "access/xlog.h"
+#include "access/table.h"
+#include "access/heapam.h"
 
 #include "catalog/catalog.h"
 #include "catalog/namespace.h"
@@ -65,8 +67,8 @@ bdr_queue_ddl_command(const char *command_tag, const char *command, const char *
 
 	/* prepare bdr.bdr_queued_commands for insert */
 	rv = makeRangeVar("bdr", "bdr_queued_commands", -1);
-	queuedcmds = heap_openrv(rv, RowExclusiveLock);
-	slot = MakeSingleTupleTableSlot(RelationGetDescr(queuedcmds));
+	queuedcmds = table_openrv(rv, RowExclusiveLock);
+	slot = MakeSingleTupleTableSlot(RelationGetDescr(queuedcmds), &TTSOpsHeapTuple);
 	estate = bdr_create_rel_estate(queuedcmds);
 	ExecOpenIndices(estate->es_result_relation_info, false);
 
@@ -81,12 +83,12 @@ bdr_queue_ddl_command(const char *command_tag, const char *command, const char *
 
 	newtup = heap_form_tuple(RelationGetDescr(queuedcmds), values, nulls);
 	simple_heap_insert(queuedcmds, newtup);
-	ExecStoreTuple(newtup, slot, InvalidBuffer, false);
-	UserTableUpdateOpenIndexes(estate, slot);
+	ExecStoreHeapTuple(newtup, slot, false);
+	UserTableUpdateOpenIndexes(estate, slot, true);
 
 	ExecCloseIndices(estate->es_result_relation_info);
 	ExecDropSingleTupleTableSlot(slot);
-	heap_close(queuedcmds, RowExclusiveLock);
+	table_close(queuedcmds, RowExclusiveLock);
 }
 
 /*
@@ -237,7 +239,7 @@ bdr_capture_ddl(Node *parsetree, const char *queryString,
        {
                Oid nspid = lfirst_oid(lc);
                char *nspname;
-               if (IsSystemNamespace(nspid) || IsToastNamespace(nspid) || isTempOrTempToastNamespace(nspid))
+               if (IsCatalogNamespace(nspid) || IsToastNamespace(nspid) || isTempOrTempToastNamespace(nspid))
                        continue;
                nspname = get_namespace_name(nspid);
                if (!first)
@@ -246,7 +248,7 @@ bdr_capture_ddl(Node *parsetree, const char *queryString,
        }
 
        if (tag == NULL)
-               tag = CreateCommandTag(parsetree);
+               tag = CreateCommandName(parsetree);
 
        bdr_queue_ddl_command(tag, queryString, si.data);
 

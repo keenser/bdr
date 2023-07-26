@@ -19,6 +19,7 @@
 #include "access/genam.h"
 #include "access/heapam.h"
 #include "access/xact.h"
+#include "access/table.h"
 
 #include "catalog/pg_class.h"
 
@@ -28,7 +29,8 @@
 #include "utils/catcache.h"
 #include "utils/fmgroids.h"
 #include "utils/inval.h"
-#include "utils/jsonapi.h"
+#include "common/jsonapi.h"
+#include "common/hashfn.h"
 #include "utils/json.h"
 #include "utils/jsonb.h"
 #include "utils/rel.h"
@@ -261,7 +263,7 @@ bdr_heap_open(Oid reloid, LOCKMODE lockmode)
 	ObjectAddress object;
 	const char *label;
 
-	rel = heap_open(reloid, lockmode);
+	rel = table_open(reloid, lockmode);
 
 	if (BDRRelcacheHash == NULL)
 		bdr_relcache_initialize();
@@ -303,7 +305,7 @@ bdr_heap_open(Oid reloid, LOCKMODE lockmode)
 void
 bdr_heap_close(BDRRelation * rel, LOCKMODE lockmode)
 {
-	heap_close(rel->rel, lockmode);
+	table_close(rel->rel, lockmode);
 	rel->rel = NULL;
 }
 
@@ -411,7 +413,7 @@ bdr_heap_compute_replication_settings(BDRRelation *r,
 		if (!relation_in_replication_set(r, setname))
 			continue;
 
-		repl_sets = heap_open(BdrReplicationSetConfigRelid, AccessShareLock);
+		repl_sets = table_open(BdrReplicationSetConfigRelid, AccessShareLock);
 		tuple = replset_lookup(repl_sets, setname);
 
 		if (tuple != NULL)
@@ -437,7 +439,7 @@ bdr_heap_compute_replication_settings(BDRRelation *r,
 			r->computed_repl_delete = true;
 		}
 
-		heap_close(repl_sets, AccessShareLock);
+		table_close(repl_sets, AccessShareLock);
 
 		/* no need to look any further, we replicate everything */
 		if (r->computed_repl_insert &&

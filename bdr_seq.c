@@ -1114,7 +1114,7 @@ bdr_sequence_alloc(PG_FUNCTION_ARGS)
 	Buffer		buf = (Buffer) PG_GETARG_INT32(2);
 	HeapTuple	seqtuple = (HeapTuple) PG_GETARG_POINTER(3);
 	Page		page;
-	Form_pg_sequence seq;
+	Form_pg_sequence_data seq;
 	bool		logit = false;
 	int64		cache,
 				log,
@@ -1133,7 +1133,7 @@ bdr_sequence_alloc(PG_FUNCTION_ARGS)
 
 retry:
 
-	seq = (Form_pg_sequence) GETSTRUCT(seqtuple);
+	seq = (Form_pg_sequence_data) GETSTRUCT(seqtuple);
 
 	values = fastgetattr(seqtuple, 11, RelationGetDescr(seqrel), &isnull);
 	if (isnull)
@@ -1331,7 +1331,7 @@ bdr_sequence_setval(PG_FUNCTION_ARGS)
 	int64		next = PG_GETARG_INT64(4);
 	bool		iscalled = PG_GETARG_BOOL(5);
 	Page		page = BufferGetPage(buf);
-	Form_pg_sequence seq = (Form_pg_sequence) GETSTRUCT(seqtuple);
+	Form_pg_sequence_data seq = (Form_pg_sequence_data) GETSTRUCT(seqtuple);
 
 	if (seq->last_value != next ||
 		seq->is_called != iscalled)
