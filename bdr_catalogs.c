@@ -338,6 +338,7 @@ bdr_nodes_set_local_attrs(BdrNodeStatus status, BdrNodeStatus oldstatus, const i
 	}
 	spi_pushed = SPI_push_conditional();
 	SPI_connect();
+	PushActiveSnapshot(GetTransactionSnapshot());
 
 	snprintf(sysid_str, sizeof(sysid_str), UINT64_FORMAT,
 			 myid.sysid);
@@ -369,6 +370,7 @@ bdr_nodes_set_local_attrs(BdrNodeStatus status, BdrNodeStatus oldstatus, const i
 					"in bdr.bdr_nodes: SPI error %d",
 					status, myid.sysid, myid.timeline, myid.dboid, spi_ret);
 
+	PopActiveSnapshot();
 	SPI_finish();
 	SPI_pop_conditional(spi_pushed);
 	if (tx_started)
@@ -576,6 +578,7 @@ bdr_read_connection_configs()
 	values[2] = ObjectIdGetDatum(myid.dboid);
 
 	SPI_connect();
+	PushActiveSnapshot(GetTransactionSnapshot());
 
 	ret = SPI_execute_with_args(query.data, 3, types, values, NULL, false, 0);
 
@@ -670,6 +673,7 @@ bdr_read_connection_configs()
 
 	MemoryContextSwitchTo(saved_ctx);
 
+	PopActiveSnapshot();
 	SPI_finish();
 
 	MemoryContextSwitchTo(caller_ctx);
