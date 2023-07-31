@@ -244,6 +244,8 @@ bdr_capture_ddl(Node *parsetree, const char *queryString,
                nspname = get_namespace_name(nspid);
                if (!first)
                        appendStringInfoString(&si, ",");
+               else
+                       first = false;
                appendStringInfoString(&si, quote_identifier(nspname));
        }
 
