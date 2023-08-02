@@ -640,10 +640,9 @@ process_remote_insert(StringInfo s)
 			 action);
 
 	estate = bdr_create_rel_estate(rel->rel);
+	oldslot = table_slot_create(rel->rel, &estate->es_tupleTable);
 	newslot = ExecInitExtraTupleSlot(estate, NULL, &TTSOpsHeapTuple);
-	oldslot = ExecInitExtraTupleSlot(estate, NULL, &TTSOpsHeapTuple);
 	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
-	ExecSetSlotDescriptor(oldslot, RelationGetDescr(rel->rel));
 
 	read_tuple_parts(s, rel, &new_tuple);
 	{
@@ -659,7 +658,8 @@ process_remote_insert(StringInfo s)
 
 	/* debug output */
 #ifdef VERBOSE_INSERT
-	log_tuple("INSERT:%s", RelationGetDescr(rel->rel), newslot->tts_tuple);
+	HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
+	log_tuple("INSERT:%s", RelationGetDescr(rel->rel), new_tts_tuple);
 #endif
 
 	/*
@@ -690,7 +690,6 @@ process_remote_insert(StringInfo s)
 
 		if (index_keys[i] == NULL)
 			continue;
-
 		Assert(ii->ii_Expressions == NIL);
 
 		/* if conflict: wait */
@@ -937,7 +936,8 @@ process_remote_update(StringInfo s)
 
 	estate = bdr_create_rel_estate(rel->rel);
 	oldslot = table_slot_create(rel->rel, &estate->es_tupleTable);
-	newslot = table_slot_create(rel->rel, &estate->es_tupleTable);
+	newslot = ExecInitExtraTupleSlot(estate, NULL, &TTSOpsHeapTuple);
+	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
 
 	if (action == 'K')
 	{
@@ -995,7 +995,6 @@ process_remote_update(StringInfo s)
 		BdrApplyConflict *apply_conflict = NULL; /* Mute compiler */
 		BdrConflictResolution resolution;
 		HeapTuple old_tts_tuple = oldslot->tts_ops->get_heap_tuple(oldslot);
-		HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
 
 		remote_tuple = heap_modify_tuple(old_tts_tuple,
 										 RelationGetDescr(rel->rel),
@@ -1004,6 +1003,7 @@ process_remote_update(StringInfo s)
 										 new_tuple.changed);
 
 		ExecStoreHeapTuple(remote_tuple, newslot, true);
+		HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
 
 #ifdef VERBOSE_UPDATE
 		{
@@ -1229,7 +1229,8 @@ process_remote_delete(StringInfo s)
 							  oldtup.values, oldtup.isnull);
 		ExecStoreHeapTuple(tup, oldslot, true);
 	}
-	log_tuple("DELETE old-key:%s", RelationGetDescr(rel->rel), oldslot->tts_tuple);
+	HeapTuple old_tts_tuple = oldslot->tts_ops->get_heap_tuple(oldslot);
+	log_tuple("DELETE old-key:%s", RelationGetDescr(rel->rel), old_tts_tuple);
 #endif
 
 	PushActiveSnapshot(GetTransactionSnapshot());
