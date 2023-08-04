@@ -275,10 +275,10 @@ bdr_maintain_db_workers(void)
 	Assert(!IsTransactionState());
 
 	/* Common apply worker values */
+	memset(&bgw, 0, sizeof(bgw));
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS |
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	//bgw.bgw_main = NULL;
 	strncpy(bgw.bgw_library_name, BDR_LIBRARY_NAME, BGW_MAXLEN);
 	strncpy(bgw.bgw_function_name, "bdr_apply_main", BGW_MAXLEN);
 	bgw.bgw_restart_time = 5;
