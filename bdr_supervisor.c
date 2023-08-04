@@ -88,11 +88,10 @@ bdr_register_perdb_worker(const char * dbname)
 	 * The rest of the perdb worker's shmem segment - proclatch
 	 * and nnodes - gets set up by the worker during startup.
 	 */
-
+	memset(&bgw, 0, sizeof(bgw));
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS |
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	//bgw.bgw_main = NULL;
 	strncpy(bgw.bgw_library_name, BDR_LIBRARY_NAME, BGW_MAXLEN);
 	strncpy(bgw.bgw_function_name, "bdr_perdb_worker_main", BGW_MAXLEN);
 	bgw.bgw_restart_time = 5;
@@ -471,10 +470,10 @@ bdr_supervisor_register()
 	 * any specific database. We still have to flag it as using a connection in
 	 * the bgworker API.
 	 */
+	memset(&bgw, 0, sizeof(bgw));
 	bgw.bgw_flags = BGWORKER_SHMEM_ACCESS |
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	bgw.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	//bgw.bgw_main = NULL;
 	strncpy(bgw.bgw_library_name, BDR_LIBRARY_NAME, BGW_MAXLEN);
 	strncpy(bgw.bgw_function_name, "bdr_supervisor_worker_main", BGW_MAXLEN);
 	bgw.bgw_restart_time = 1;
