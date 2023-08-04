@@ -10,7 +10,3 @@
  *
  *-------------------------------------------------------------------------
  */
-//#include "postgres.h"
-//#include <access/xlog.h>
-
-//TimeLineID ThisTimeLineID = GetWALInsertionTimeLine();
