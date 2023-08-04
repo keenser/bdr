@@ -17,6 +17,7 @@
 #include "storage/latch.h"
 #include "storage/lock.h"
 #include "tcop/utility.h"
+#include "nodes/execnodes.h"
 
 #include "lib/ilist.h"
 
@@ -467,14 +468,13 @@ extern bool bdr_fetch_sysid_via_node_id_ifexists(RepOriginId node_id, BDRNodeId 
 extern RepOriginId bdr_fetch_node_id_via_sysid(const BDRNodeId * const node);
 
 /* Index maintenance, heap access, etc */
-extern struct EState * bdr_create_rel_estate(Relation rel);
-extern void UserTableUpdateIndexes(struct EState *estate,
+extern void UserTableUpdateIndexes(ResultRelInfo *relinfo, struct EState *estate,
 								   struct TupleTableSlot *slot,
 								   bool update_indexes);
-extern void UserTableUpdateOpenIndexes(struct EState *estate,
+extern void UserTableUpdateOpenIndexes(ResultRelInfo *relinfo, struct EState *estate,
 									   struct TupleTableSlot *slot,
 									   bool update_indexes);
-extern void build_index_scan_keys(struct EState *estate,
+extern void build_index_scan_keys(ResultRelInfo *relinfo,
 								  struct ScanKeyData **scan_keys,
 								  BDRTupleData *tup);
 extern bool build_index_scan_key(struct ScanKeyData *skey, Relation rel,

@@ -545,6 +545,11 @@ BEGIN
                 RETURNS boolean
                 LANGUAGE SQL
                 AS 'SELECT pg_replication_origin_session_is_setup()';
+        WHEN 1500 THEN
+                CREATE OR REPLACE FUNCTION bdr.bdr_replication_identifier_is_replaying()
+                RETURNS boolean
+                LANGUAGE SQL
+                AS 'SELECT pg_replication_origin_session_is_setup()';
 	ELSE
 		RAISE EXCEPTION 'Pg version % not supported', current_setting('server_version_num');
 	END CASE;
@@ -1721,6 +1726,11 @@ BEGIN
                 FROM pg_replication_slots;
 
 	WHEN 1300 THEN
+                CREATE VIEW bdr.pg_replication_slots AS
+                SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
+                FROM pg_replication_slots;
+
+        WHEN 1500 THEN
                 CREATE VIEW bdr.pg_replication_slots AS
                 SELECT slot_name, plugin, slot_type, datoid, database, active, active_pid, xmin, catalog_xmin, restart_lsn, confirmed_flush_lsn
                 FROM pg_replication_slots;

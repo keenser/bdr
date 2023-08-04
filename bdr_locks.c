@@ -1256,7 +1256,7 @@ cancel_conflicting_transactions(void)
 	while (conflict->backendId != InvalidBackendId)
 	{
 		PGPROC	   *pgproc = BackendIdGetProc(conflict->backendId);
-		PGXACT	   *pgxact;
+		PGPROC     *proc;
 
 		if (pgproc == NULL)
 		{
@@ -1265,10 +1265,10 @@ cancel_conflicting_transactions(void)
 			continue;
 		}
 
-		pgxact = &ProcGlobal->allPgXact[pgproc->pgprocno];
+		proc = &ProcGlobal->allProcs[pgproc->pgprocno];
 
 		/* Skip the transactions that didn't do any writes. */
-		if (!TransactionIdIsValid(pgxact->xid))
+		if (!TransactionIdIsValid(proc->xid))
 		{
 			conflict++;
 			continue;

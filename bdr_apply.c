@@ -639,7 +639,12 @@ process_remote_insert(StringInfo s)
 		elog(ERROR, "expected new tuple but got %d",
 			 action);
 
-	estate = bdr_create_rel_estate(rel->rel);
+	estate = CreateExecutorState();
+	relinfo = makeNode(ResultRelInfo);
+	relinfo->ri_RangeTableIndex = 1;          /* dummy */
+	relinfo->ri_RelationDesc = rel->rel;
+	relinfo->ri_TrigInstrument = NULL;
+
 	oldslot = table_slot_create(rel->rel, &estate->es_tupleTable);
 	newslot = ExecInitExtraTupleSlot(estate, NULL, &TTSOpsHeapTuple);
 	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
@@ -665,12 +670,11 @@ process_remote_insert(StringInfo s)
 	/*
 	 * Search for conflicting tuples.
 	 */
-	ExecOpenIndices(estate->es_result_relation_info, false);
-	relinfo = estate->es_result_relation_info;
+	ExecOpenIndices(relinfo, false);
 	index_keys = palloc0(relinfo->ri_NumIndices * sizeof(ScanKeyData*));
 	conflicts = palloc0(relinfo->ri_NumIndices * sizeof(ItemPointerData));
 
-	build_index_scan_keys(estate, index_keys, &new_tuple);
+	build_index_scan_keys(relinfo, index_keys, &new_tuple);
 
 	/* do a SnapshotDirty search for conflicting tuples */
 	for (i = 0; i < relinfo->ri_NumIndices; i++)
@@ -792,7 +796,7 @@ process_remote_insert(StringInfo s)
 							   newslot, estate->es_snapshot,
 							   &update_indexes);
 			/* races will be resolved by abort/retry */
-			UserTableUpdateOpenIndexes(estate, newslot, update_indexes);
+			UserTableUpdateOpenIndexes(relinfo, estate, newslot, update_indexes);
 
 			bdr_count_insert();
 		}
@@ -808,13 +812,13 @@ process_remote_insert(StringInfo s)
 	{
 		//HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
 		simple_table_tuple_insert(rel->rel, newslot);
-		UserTableUpdateOpenIndexes(estate, newslot, true);
+		UserTableUpdateOpenIndexes(relinfo, estate, newslot, true);
 		bdr_count_insert();
 	}
 
 	PopActiveSnapshot();
 
-	ExecCloseIndices(estate->es_result_relation_info);
+	ExecCloseIndices(relinfo);
 
 	check_bdr_wakeups(rel);
 
@@ -902,6 +906,7 @@ process_remote_update(StringInfo s)
 				remote_tuple = NULL;
 	ErrorContextCallback errcallback;
 	struct ActionErrCallbackArg cbarg;
+	ResultRelInfo *relinfo;
 
 	xact_action_counter++;
 	memset(&cbarg, 0, sizeof(struct ActionErrCallbackArg));
@@ -934,7 +939,12 @@ process_remote_update(StringInfo s)
 		elog(ERROR, "expected action 'N' or 'K', got %c",
 			 action);
 
-	estate = bdr_create_rel_estate(rel->rel);
+	estate = CreateExecutorState();
+	relinfo = makeNode(ResultRelInfo);
+	relinfo->ri_RangeTableIndex = 1;          /* dummy */
+	relinfo->ri_RelationDesc = rel->rel;
+	relinfo->ri_TrigInstrument = NULL;
+
 	oldslot = table_slot_create(rel->rel, &estate->es_tupleTable);
 	newslot = ExecInitExtraTupleSlot(estate, NULL, &TTSOpsHeapTuple);
 	ExecSetSlotDescriptor(newslot, RelationGetDescr(rel->rel));
@@ -994,6 +1004,7 @@ process_remote_update(StringInfo s)
 		bool		log_update;
 		BdrApplyConflict *apply_conflict = NULL; /* Mute compiler */
 		BdrConflictResolution resolution;
+		HeapTuple new_tts_tuple;
 		HeapTuple old_tts_tuple = oldslot->tts_ops->get_heap_tuple(oldslot);
 
 		remote_tuple = heap_modify_tuple(old_tts_tuple,
@@ -1003,7 +1014,7 @@ process_remote_update(StringInfo s)
 										 new_tuple.changed);
 
 		ExecStoreHeapTuple(remote_tuple, newslot, true);
-		HeapTuple new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
+		new_tts_tuple = newslot->tts_ops->get_heap_tuple(newslot);
 
 #ifdef VERBOSE_UPDATE
 		{
@@ -1060,7 +1071,7 @@ process_remote_update(StringInfo s)
 			}
 
 			simple_table_tuple_update(rel->rel, &oldslot->tts_tid, newslot, estate->es_snapshot, &update_indexes);
-			UserTableUpdateIndexes(estate, newslot, update_indexes);
+			UserTableUpdateIndexes(relinfo, estate, newslot, update_indexes);
 			bdr_count_update();
 		}
 
@@ -1122,7 +1133,7 @@ process_remote_update(StringInfo s)
 			ExecStoreHeapTuple(user_tuple, newslot, true);
 
 			simple_table_tuple_insert(rel->rel, newslot);
-			UserTableUpdateOpenIndexes(estate, newslot, true);
+			UserTableUpdateOpenIndexes(relinfo, estate, newslot, true);
 		}
 
 		bdr_conflict_log_table(apply_conflict);
@@ -1199,7 +1210,7 @@ process_remote_delete(StringInfo s)
 		return;
 	}
 
-	estate = bdr_create_rel_estate(rel->rel);
+	estate = CreateExecutorState();
 	oldslot = table_slot_create(rel->rel, &estate->es_tupleTable);
 
 	read_tuple_parts(s, rel, &oldtup);
@@ -1485,7 +1496,7 @@ check_apply_update(BdrConflictType conflict_type,
 												   conflict_type == BdrConflictType_InsertInsert ?
 												   "INSERT" : "UPDATE",
 												   conflict_type,
-												   abs(secs) * 1000000 + abs(microsecs),
+												   labs(secs) * 1000000 + labs(microsecs),
 												   &skip);
 
 		if (skip)
@@ -1585,10 +1596,10 @@ bdr_execute_ddl_command(char *cmdstr, char *perpetrator, char *search_path,
 		 */
 		SetConfigOption("role", perpetrator, PGC_INTERNAL, PGC_S_OVERRIDE);
 
-		commandTag = CreateCommandTag(command->stmt);
+		commandTag = CreateCommandTag(command);
 
 		querytree_list = pg_analyze_and_rewrite(
-			command, cmdstr, NULL, 0, NULL);
+			command, cmdstr, NULL, 0);
 
 		plantree_list = pg_plan_queries(
 			querytree_list, cmdstr, 0, NULL);
@@ -2474,7 +2485,7 @@ abs_timestamp_difference(TimestampTz start_time, TimestampTz stop_time,
 	}
 	else
 	{
-		TimestampTz diff = abs(stop_time - start_time);
+		TimestampTz diff = labs(stop_time - start_time);
 #ifdef HAVE_INT64_TIMESTAMP
 		*secs = (long) (diff / USECS_PER_SEC);
 		*microsecs = (int) (diff % USECS_PER_SEC);

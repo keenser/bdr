@@ -63,40 +63,20 @@ static bool bdr_always_allow_writes = false;
 PGDLLEXPORT Datum bdr_node_set_read_only(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(bdr_node_set_read_only);
 
-EState *
-bdr_create_rel_estate(Relation rel)
-{
-	EState	   *estate;
-	ResultRelInfo *resultRelInfo;
-
-	estate = CreateExecutorState();
-
-	resultRelInfo = makeNode(ResultRelInfo);
-	resultRelInfo->ri_RangeTableIndex = 1;		/* dummy */
-	resultRelInfo->ri_RelationDesc = rel;
-	resultRelInfo->ri_TrigInstrument = NULL;
-
-	estate->es_result_relations = resultRelInfo;
-	estate->es_num_result_relations = 1;
-	estate->es_result_relation_info = resultRelInfo;
-
-	return estate;
-}
-
 void
-UserTableUpdateIndexes(EState *estate, TupleTableSlot *slot, bool update_indexes)
+UserTableUpdateIndexes(ResultRelInfo *relinfo, EState *estate, TupleTableSlot *slot, bool update_indexes)
 {
 	/* HOT update does not require index inserts */
 	if (update_indexes == false)
 		return;
 
-	ExecOpenIndices(estate->es_result_relation_info, false);
-	UserTableUpdateOpenIndexes(estate, slot, update_indexes);
-	ExecCloseIndices(estate->es_result_relation_info);
+	ExecOpenIndices(relinfo, false);
+	UserTableUpdateOpenIndexes(relinfo, estate, slot, update_indexes);
+	ExecCloseIndices(relinfo);
 }
 
 void
-UserTableUpdateOpenIndexes(EState *estate, TupleTableSlot *slot, bool update_indexes)
+UserTableUpdateOpenIndexes(ResultRelInfo *relinfo, EState *estate, TupleTableSlot *slot, bool update_indexes)
 {
 	List	   *recheckIndexes = NIL;
 
@@ -104,10 +84,10 @@ UserTableUpdateOpenIndexes(EState *estate, TupleTableSlot *slot, bool update_ind
 	if (update_indexes == false)
 		return;
 
-	if (estate->es_result_relation_info->ri_NumIndices > 0)
+	if (relinfo->ri_NumIndices > 0)
 	{
-		recheckIndexes = ExecInsertIndexTuples(slot,
-											   		 estate,
+		recheckIndexes = ExecInsertIndexTuples(relinfo, slot,
+											   		 estate, update_indexes,
 													 false, NULL, NIL);
 
 		if (recheckIndexes != NIL)
@@ -121,12 +101,9 @@ UserTableUpdateOpenIndexes(EState *estate, TupleTableSlot *slot, bool update_ind
 }
 
 void
-build_index_scan_keys(EState *estate, ScanKey *scan_keys, BDRTupleData *tup)
+build_index_scan_keys(ResultRelInfo *relinfo, ScanKey *scan_keys, BDRTupleData *tup)
 {
-	ResultRelInfo *relinfo;
 	int i;
-
-	relinfo = estate->es_result_relation_info;
 
 	/* build scankeys for each index */
 	for (i = 0; i < relinfo->ri_NumIndices; i++)

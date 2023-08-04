@@ -377,6 +377,7 @@ bdr_conflict_log_table(BdrApplyConflict *conflict)
 	HeapTuple		log_tup;
 	TupleTableSlot *log_slot;
 	EState		   *log_estate;
+	ResultRelInfo           *relinfo;
 	char			local_sysid[SYSID_DIGITS];
 	char			remote_sysid[SYSID_DIGITS];
 	char			origin_sysid[SYSID_DIGITS];
@@ -568,7 +569,12 @@ bdr_conflict_log_table(BdrApplyConflict *conflict)
 	log_rel = table_open(BdrConflictHistoryRelId, RowExclusiveLock);
 
 	/* Prepare executor state for index updates */
-	log_estate = bdr_create_rel_estate(log_rel);
+	log_estate = CreateExecutorState();
+	relinfo = makeNode(ResultRelInfo);
+	relinfo->ri_RangeTableIndex = 1;          /* dummy */
+	relinfo->ri_RelationDesc = log_rel;
+	relinfo->ri_TrigInstrument = NULL;
+
 	log_slot = ExecInitExtraTupleSlot(log_estate, NULL, &TTSOpsMinimalTuple);
 	ExecSetSlotDescriptor(log_slot, RelationGetDescr(log_rel));
 	/* Construct the tuple and insert it */
@@ -576,7 +582,7 @@ bdr_conflict_log_table(BdrApplyConflict *conflict)
 	ExecStoreHeapTuple(log_tup, log_slot, true);
 	simple_table_tuple_insert(log_rel, log_slot);
 	/* Then do any index maintanence required */
-	UserTableUpdateIndexes(log_estate, log_slot, true);
+	UserTableUpdateIndexes(relinfo, log_estate, log_slot, true);
 	/* and finish up */
 	table_close(log_rel, RowExclusiveLock);
 	ExecResetTupleTable(log_estate->es_tupleTable, true);

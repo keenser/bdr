@@ -322,7 +322,6 @@ bdr_nodes_set_local_attrs(BdrNodeStatus status, BdrNodeStatus oldstatus, const i
 	Datum		values[6];
 	char		sysid_str[33];
 	bool		tx_started = false;
-	bool		spi_pushed;
 	BDRNodeId	myid;
 
 	bdr_make_my_nodeid(&myid);
@@ -336,7 +335,7 @@ bdr_nodes_set_local_attrs(BdrNodeStatus status, BdrNodeStatus oldstatus, const i
 		tx_started = true;
 		StartTransactionCommand();
 	}
-	spi_pushed = SPI_push_conditional();
+	SPI_push_conditional();
 	SPI_connect();
 	PushActiveSnapshot(GetTransactionSnapshot());
 

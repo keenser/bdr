@@ -788,6 +788,7 @@ prevent_drop_extension_bdr(DropStmt *stmt)
 static void
 bdr_commandfilter(PlannedStmt *pstmt,
 				  const char *queryString,
+				  bool readOnlyTree,
 				  ProcessUtilityContext context,
 				  ParamListInfo params,
                                   QueryEnvironment *queryEnv,
@@ -1353,7 +1354,7 @@ bdr_commandfilter(PlannedStmt *pstmt,
                                          errdetail("9.6BDR does not support transparent DDL replication for "
                                                            "multi-statement strings or function bodies containing DDL "
                                                            "commands. Problem statement has tag [%s] in SQL string: %s",
-                                                           CreateCommandTag(parsetree), queryString),
+                                                           CreateCommandName(parsetree), queryString),
                                          errhint("Use bdr.bdr_replicate_ddl_command(...) instead")));
 
 		Assert(bdr_ddl_nestlevel >= 0);
@@ -1416,11 +1417,11 @@ done:
 	PG_TRY();
 	{
 		if (next_ProcessUtility_hook)
-			next_ProcessUtility_hook(pstmt, queryString, context, params, queryEnv,
-									 dest, qc);
+			PGLnext_ProcessUtility_hook(pstmt, queryString, readOnlyTree, context, params, queryEnv,
+									 dest, sendToRemote, qc);
 		else
-			standard_ProcessUtility(pstmt, queryString, context, params, queryEnv,
-									dest, qc);
+			PGLstandard_ProcessUtility(pstmt, queryString, readOnlyTree, context, params, queryEnv,
+									dest, sendToRemote, qc);
 	}
 	PG_CATCH();
 	{

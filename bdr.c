@@ -90,6 +90,7 @@ bool bdr_discard_mismatched_row_attributes;
 bool bdr_trace_replay;
 int bdr_trace_ddl_locks_level;
 char *bdr_extra_apply_connection_options;
+shmem_request_hook_type prev_shmem_request_hook = NULL;
 
 PG_MODULE_MAGIC;
 
@@ -905,7 +906,8 @@ _PG_init(void)
 		 * Reserve shared memory segment to store bgworker connection information
 		 * and hook into shmem initialization.
 		 */
-		bdr_shmem_init();
+		prev_shmem_request_hook = shmem_request_hook;
+		shmem_request_hook = bdr_shmem_init;
 
 		bdr_executor_init();
 

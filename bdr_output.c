@@ -798,7 +798,7 @@ pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 	 * origins.
 	 */
 	pq_sendint64(ctx->out, txn->end_lsn);
-	pq_sendint64(ctx->out, txn->commit_time);
+	pq_sendint64(ctx->out, txn->xact_time.commit_time);
 	pq_sendint(ctx->out, txn->xid, 4);
 
 	/* and optional data selected above */
@@ -856,7 +856,7 @@ pg_decode_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	/* end_lsn is end of commit + 1, which is what's used in replorigin and feedback msgs */
 	Assert(txn->end_lsn != InvalidXLogRecPtr);
 	pq_sendint64(ctx->out, txn->end_lsn);
-	pq_sendint64(ctx->out, txn->commit_time);
+	pq_sendint64(ctx->out, txn->xact_time.commit_time);
 
 	OutputPluginWrite(ctx, true);
 }

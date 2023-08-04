@@ -348,7 +348,7 @@ bdr_queue_dropped_objects(PG_FUNCTION_ARGS)
 		newtup = heap_form_tuple(RelationGetDescr(queuedcmds), values, nulls);
 		simple_heap_insert(queuedcmds, newtup);
 		ExecStoreTuple(newtup, slot, InvalidBuffer, false);
-		UserTableUpdateOpenIndexes(estate, slot);
+		UserTableUpdateOpenIndexes(estate->es_result_relation_info, estate, slot);
 
 		ExecCloseIndices(estate->es_result_relation_info);
 		ExecDropSingleTupleTableSlot(slot);
