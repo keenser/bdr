@@ -1,0 +1,73 @@
+diff '--color=auto' -ruN /mnt/src/postgresql-13.3/src/bin/pg_dump/pg_backup.h /mnt/src/bdr/pg_dump13/pg_backup.h
+--- /mnt/src/postgresql-13.3/src/bin/pg_dump/pg_backup.h	2021-05-10 23:41:42.000000000 +0300
++++ /mnt/src/bdr/pg_dump13/pg_backup.h	2023-08-03 17:45:55.853765835 +0300
+@@ -141,6 +141,7 @@
+ 	ConnParams	cparams;
+ 
+ 	int			binary_upgrade;
++	int			bdr_init_node;
+ 
+ 	/* various user-settable parameters */
+ 	bool		schemaOnly;
+diff '--color=auto' -ruN /mnt/src/postgresql-13.3/src/bin/pg_dump/pg_dump.c /mnt/src/bdr/pg_dump13/pg_dump.c
+--- /mnt/src/postgresql-13.3/src/bin/pg_dump/pg_dump.c	2021-05-10 23:41:42.000000000 +0300
++++ /mnt/src/bdr/pg_dump13/pg_dump.c	2023-08-03 17:45:55.857765816 +0300
+@@ -358,6 +358,7 @@
+ 		 */
+ 		{"attribute-inserts", no_argument, &dopt.column_inserts, 1},
+ 		{"binary-upgrade", no_argument, &dopt.binary_upgrade, 1},
++		{"bdr-init-node", no_argument, &dopt.bdr_init_node, 1},
+ 		{"column-inserts", no_argument, &dopt.column_inserts, 1},
+ 		{"disable-dollar-quoting", no_argument, &dopt.disable_dollar_quoting, 1},
+ 		{"disable-triggers", no_argument, &dopt.disable_triggers, 1},
+@@ -8939,7 +8940,7 @@
+ bool
+ shouldPrintColumn(DumpOptions *dopt, TableInfo *tbinfo, int colno)
+ {
+-	if (dopt->binary_upgrade)
++	if (dopt->binary_upgrade || dopt->bdr_init_node)
+ 		return true;
+ 	if (tbinfo->attisdropped[colno])
+ 		return false;
+@@ -16284,6 +16285,41 @@
+ 			}
+ 		}
+ 
++                /* Some of the binary compatibility is needed for bdr as well. */
++                if (dopt->bdr_init_node && tbinfo->relkind == RELKIND_RELATION)
++                {
++                        for (j = 0; j < tbinfo->numatts; j++)
++                        {
++                                if (tbinfo->attisdropped[j])
++                                {
++                                        appendPQExpBufferStr(q, "\n-- For bdr init, recreate dropped column.\n");
++                                        appendPQExpBuffer(q, "UPDATE pg_catalog.pg_attribute\n"
++                                                                          "SET attlen = %d, "
++                                                                          "attalign = '%c', attbyval = false\n"
++                                                                          "WHERE attname = ",
++                                                                          tbinfo->attlen[j],
++                                                                          tbinfo->attalign[j]);
++                                        appendStringLiteralAH(q, tbinfo->attnames[j], fout);
++                                        appendPQExpBufferStr(q, "\n  AND attrelid = ");
++                                        appendStringLiteralAH(q, qualrelname, fout);
++                                        appendPQExpBufferStr(q, "::pg_catalog.regclass;\n");
++
++                                        if (tbinfo->relkind == RELKIND_RELATION ||
++                                                tbinfo->relkind == RELKIND_PARTITIONED_TABLE)
++                                                appendPQExpBuffer(q, "ALTER TABLE ONLY %s ",
++                                                                                  qualrelname);
++                                        else
++                                                appendPQExpBuffer(q, "ALTER FOREIGN TABLE %s ",
++                                                                                  qualrelname);
++
++                                        appendPQExpBuffer(q, "DROP COLUMN %s;\n",
++                                                                          fmtId(tbinfo->attnames[j]));
++                                }
++                        }
++                }
++
++
++
+ 		/*
+ 		 * For partitioned tables, emit the ATTACH PARTITION clause.  Note
+ 		 * that we always want to create partitions this way instead of using
