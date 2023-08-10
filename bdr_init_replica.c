@@ -1001,6 +1001,7 @@ bdr_init_replica(BDRNodeInfo *local_node)
 
 			case BDR_NODE_STATUS_READY:
 				elog(ERROR, "unexpected state");
+				break;
 
 			case BDR_NODE_STATUS_CATCHUP:
 				/*

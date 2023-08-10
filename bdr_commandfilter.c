@@ -272,6 +272,7 @@ filter_AlterTableStmt(Node *parsetree,
 													   astmt->missing_ok);
 						}
 					}
+					break;
 				case AT_AddIndex: /* produced by for example ALTER TABLE … ADD
 								   * CONSTRAINT … PRIMARY KEY */
 					{
@@ -291,8 +292,8 @@ filter_AlterTableStmt(Node *parsetree,
 												   lockmode,
 												   astmt->missing_ok);
 						}
-
 					}
+					break;
 
 				case AT_DropColumn:
 				case AT_DropNotNull:
