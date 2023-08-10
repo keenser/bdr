@@ -1354,7 +1354,7 @@ bdr_commandfilter(PlannedStmt *pstmt,
                                          errdetail("9.6BDR does not support transparent DDL replication for "
                                                            "multi-statement strings or function bodies containing DDL "
                                                            "commands. Problem statement has tag [%s] in SQL string: %s",
-                                                           CreateCommandTag(parsetree), queryString),
+                                                           CreateCommandName(parsetree), queryString),
                                          errhint("Use bdr.bdr_replicate_ddl_command(...) instead")));
 
 		Assert(bdr_ddl_nestlevel >= 0);
