@@ -856,6 +856,7 @@ bdr_perdb_worker_main(Datum main_arg)
 		spi_ret = SPI_connect();
 		if (spi_ret != SPI_OK_CONNECT)
 			elog(ERROR, "SPI already connected; this shouldn't be possible");
+		PushActiveSnapshot(GetTransactionSnapshot());
 
 		saved_ctx = MemoryContextSwitchTo(TopMemoryContext);
 		local_node = bdr_nodes_get_local_info(&myid);
@@ -867,6 +868,7 @@ bdr_perdb_worker_main(Datum main_arg)
 					 errmsg("local node record for "BDR_NODEID_FORMAT" not found",
 							BDR_NODEID_FORMAT_ARGS(myid))));
 
+		PopActiveSnapshot();
 		SPI_finish();
 		CommitTransactionCommand();
 
