@@ -1472,7 +1472,7 @@ check_apply_update(BdrConflictType conflict_type,
 												   conflict_type == BdrConflictType_InsertInsert ?
 												   "INSERT" : "UPDATE",
 												   conflict_type,
-												   abs(secs) * 1000000 + abs(microsecs),
+												   labs(secs) * 1000000 + labs(microsecs),
 												   &skip);
 
 		if (skip)
@@ -2461,7 +2461,7 @@ abs_timestamp_difference(TimestampTz start_time, TimestampTz stop_time,
 	}
 	else
 	{
-		TimestampTz diff = abs(stop_time - start_time);
+		TimestampTz diff = labs(stop_time - start_time);
 #ifdef HAVE_INT64_TIMESTAMP
 		*secs = (long) (diff / USECS_PER_SEC);
 		*microsecs = (int) (diff % USECS_PER_SEC);
