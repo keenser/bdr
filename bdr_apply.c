@@ -1497,7 +1497,7 @@ check_apply_update(BdrConflictType conflict_type,
 												   conflict_type == BdrConflictType_InsertInsert ?
 												   "INSERT" : "UPDATE",
 												   conflict_type,
-												   labs(secs) * 1000000 + abs(microsecs),
+												   labs(secs) * 1000000 + labs(microsecs),
 												   &skip);
 
 		if (skip)
