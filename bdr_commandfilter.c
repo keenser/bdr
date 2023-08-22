@@ -78,6 +78,9 @@ error_on_persistent_rv(RangeVar *rv,
 	bool		needswal;
 	Relation	rel;
 
+	if (bdr_permit_unsafe_commands)
+		return;
+
 	if (rv == NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
