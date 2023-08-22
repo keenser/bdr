@@ -79,6 +79,13 @@ LANGUAGE c STRICT VOLATILE AS 'MODULE_PATHNAME','global_seq_nextval_oid';
 COMMENT ON FUNCTION bdr.global_seq_nextval(regclass)
 IS 'generate sequence values unique to this node using a local sequence as a seed';
 
+CREATE FUNCTION bdr.global_seq_nextval_js(regclass, bigint default null)
+RETURNS bigint
+LANGUAGE c VOLATILE AS 'MODULE_PATHNAME','global_seq_nextval_oid';
+
+COMMENT ON FUNCTION bdr.global_seq_nextval_js(regclass, bigint)
+IS 'generate sequence values unique to this node using a local sequence as a seed js compliant';
+
 -- For testing purposes we sometimes want to be able to override the
 -- timestamp etc.
 CREATE FUNCTION bdr.global_seq_nextval_test(regclass, bigint)
