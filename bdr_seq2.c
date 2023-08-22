@@ -71,6 +71,7 @@ global_seq_nextval_oid(PG_FUNCTION_ARGS)
 	int64	timestamp;
 	int64	res;
 	const int64 seq_ts_epoch = 529111339634; /* Oct 7, 2016, when this code was written, in ms */
+	int64   strip_ts = 0xFFFFFFFF;
 	int64	current_ts = GetCurrentTimestamp();
 
 	if (PG_NARGS() >= 2)
@@ -80,11 +81,15 @@ global_seq_nextval_oid(PG_FUNCTION_ARGS)
 		 * purposes using an alternate function signature. We've
 		 * received one.
 		 */
-		current_ts = PG_GETARG_INT64(1);
+		if (PG_ARGISNULL(1)) {
+			strip_ts = 0x1FFFFFFF;
+		} else {
+			current_ts = PG_GETARG_INT64(1);
+		}
 	}
 
 	/* timestamp is in milliseconds */
-	timestamp = (current_ts/1000) - seq_ts_epoch;
+	timestamp = ((current_ts/1000) - seq_ts_epoch) & strip_ts;
 	nodeid = global_seq_get_nodeid();
 	sequenced = DirectFunctionCall1(nextval_oid, seqoid);
 	sequence = DatumGetInt64(sequenced) % MAX_SEQ_ID;
