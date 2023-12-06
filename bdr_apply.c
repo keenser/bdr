@@ -2556,6 +2556,7 @@ bdr_apply_work(PGconn* streamConn)
 	int			fd;
 	char	   *copybuf = NULL;
 	XLogRecPtr	last_received = InvalidXLogRecPtr;
+	WaitEventSet *eventSet;
 
 	fd = PQsocket(streamConn);
 
@@ -2565,14 +2566,19 @@ bdr_apply_work(PGconn* streamConn)
 										   ALLOCSET_DEFAULT_INITSIZE,
 										   ALLOCSET_DEFAULT_MAXSIZE);
 
+	eventSet = CreateWaitEventSet(CurrentMemoryContext, 3);
+	AddWaitEventToSet(eventSet, WL_LATCH_SET, PGINVALID_SOCKET, &MyProc->procLatch, NULL);
+	AddWaitEventToSet(eventSet, WL_POSTMASTER_DEATH, PGINVALID_SOCKET, NULL, NULL);
+	AddWaitEventToSet(eventSet, WL_SOCKET_READABLE, fd, NULL, NULL);
+
 	/* mark as idle, before starting to loop */
 	pgstat_report_activity(STATE_IDLE, NULL);
 
 	while (!got_SIGTERM)
 	{
-		/* int		 ret; */
 		int			rc;
 		int			r;
+		WaitEvent		event;
 
 		/*
 		 * Background workers mustn't call usleep() or any direct equivalent:
@@ -2580,17 +2586,14 @@ bdr_apply_work(PGconn* streamConn)
 		 * necessary, but is awakened if postmaster dies.  That way the
 		 * background process goes away immediately in an emergency.
 		 */
-		rc = WaitLatchOrSocket(&MyProc->procLatch,
-							   WL_SOCKET_READABLE | WL_LATCH_SET |
-							   WL_TIMEOUT | WL_POSTMASTER_DEATH,
-							   fd, 1000L, PG_WAIT_EXTENSION);
+		rc = WaitEventSetWait(eventSet, 1000L, &event, 1, PG_WAIT_EXTENSION);
 
 		ResetLatch(&MyProc->procLatch);
 
 		MemoryContextSwitchTo(MessageContext);
 
 		/* emergency bailout if postmaster has died */
-		if (rc & WL_POSTMASTER_DEATH)
+		if (rc && event.events & WL_POSTMASTER_DEATH)
 			proc_exit(1);
 
 		if (PQstatus(streamConn) == CONNECTION_BAD)
@@ -2605,7 +2608,7 @@ bdr_apply_work(PGconn* streamConn)
 			ProcessConfigFile(PGC_SIGHUP);
 		}
 
-		if (rc & WL_LATCH_SET)
+		if (rc && event.events & WL_LATCH_SET)
 		{
 			/*
 			 * Apply worker latch was set. This could be an attempt to resume
@@ -2616,7 +2619,7 @@ bdr_apply_work(PGconn* streamConn)
 			bdr_apply_reload_config();
 		}
 
-		if (rc & WL_SOCKET_READABLE)
+		if (rc && event.events & WL_SOCKET_READABLE)
 			PQconsumeInput(streamConn);
 
 		for (;;)
@@ -2756,6 +2759,7 @@ bdr_apply_work(PGconn* streamConn)
 
 		MemoryContextResetAndDeleteChildren(MessageContext);
 	}
+	FreeWaitEventSet(eventSet);
 }
 
 
