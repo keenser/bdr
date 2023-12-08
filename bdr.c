@@ -90,6 +90,7 @@ bool bdr_trace_replay;
 int bdr_trace_ddl_locks_level;
 char *bdr_extra_apply_connection_options;
 bool bdr_enabled;
+bool bdr_replication_sanity_checks;
 
 PG_MODULE_MAGIC;
 
@@ -898,6 +899,14 @@ _PG_init(void)
 							   &bdr_enabled,
 							   true,
 							   PGC_BACKEND,
+							   0, NULL, NULL, NULL);
+
+	DefineCustomBoolVariable("bdr.replication_sanity_checks",
+							   "Shut down postgres when replication encounters certain unplausible states",
+							   NULL,
+							   &bdr_replication_sanity_checks,
+							   true,
+							   PGC_SIGHUP,
 							   0, NULL, NULL, NULL);
 
 	MarkGUCPrefixReserved("bdr");

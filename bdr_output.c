@@ -48,6 +48,7 @@
 #include "replication/output_plugin.h"
 #include "replication/origin.h"
 #include "replication/slot.h"
+#include "replication/snapbuild.h"
 #include "replication/walsender_private.h"
 
 #include "storage/fd.h"
@@ -187,6 +188,20 @@ bdr_parse_uint32(DefElem *elem, uint32 *res)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("could not parse uint32 value \"%s\" for parameter \"%s\": %m",
+						strVal(elem->arg), elem->defname)));
+}
+
+static void
+bdr_parse_uint64(DefElem *elem, uint64 *res)
+{
+	bdr_parse_notnull(elem, "uint64");
+	errno = 0;
+	*res = strtoull(strVal(elem->arg), NULL, 0);
+
+	if (errno != 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("could not parse uint64 value \"%s\" for parameter \"%s\": %m",
 						strVal(elem->arg), elem->defname)));
 }
 
@@ -360,6 +375,78 @@ bdr_ensure_node_ready(BdrOutputData *data)
 	}
 }
 
+/*
+ * Checks to prevent DB divergence due to a remote node with a newer or older state than the local node.
+ * For example, if node A is reset to yesterday's state via a physical backup while node B is running, node A
+ * will send a START_REPLICATION request to B with a start_lsn that B likely does not reserve anymore.
+ * B will simply fast-forward to A's restart_lsn recorded in its local replication slot for A. If we now reset
+ * B to yesterday's backup a moment later, replication is broken, because A will most likely have already
+ * confirmed replication up to a LSN that lies in the future for the current state of B. In consequence,
+ * A will miss out on all changes from B until B has reached the insert LSN it last sent to A before
+ * restoring the backup.
+ *
+ * In order to avoid this in the most severe cases, we check whether the start_lsn calculated for both
+ * nodes is smaller than the other node's WAL insert LSN whenever a replication slot is started up.
+ * If this check fails on the cluster apparently serving the older DB state, we shut down the cluster.
+ * This way we keep the local LSN from progressing until it catches up to the start_lsn requested by the
+ * node on the newer state, seemingly repairing replication but possibly making the resulting DB divergence
+ * go unnoticed for a long time and thereafter much more difficult to fix.
+ * If the check fails on the node with the newer DB state, we let the walsender die and therewith refuse
+ * to serve replication data. It is better if our cluster keeps running so that the older node's
+ * apply worker can reach this node and decide to shut down its cluster.
+ */
+static void
+startup_sanity_checks(LogicalDecodingContext * ctx, BDRNodeId *remoteNodeId, XLogRecPtr remote_insert_lsn)
+{
+	bool remote_requests_future_lsn;
+	bool local_requests_future_lsn;
+	char *remote_repident_name;
+	RepOriginId remote_replication_identifier = InvalidOid;
+	XLogRecPtr local_start_from = InvalidXLogRecPtr;
+	MemoryContext mctx;
+
+	/* the requested start_lsn should not be later than our current wal insert location */
+	remote_requests_future_lsn = SnapBuildXactNeedsSkip(ctx->snapshot_builder, GetXLogInsertRecPtr());
+	if (remote_requests_future_lsn)
+	{
+		elog(WARNING,
+			"Node " UINT64_FORMAT
+			" requested replication starting from a LSN not yet reached by this node! "
+			"Was the local node reset to an earlier state while the other node was not?",
+			remoteNodeId->sysid);
+		/*
+		 * Note that we do not want to log on PANIC level, as that would trigger an immediate restart
+		 */
+		kill(PostmasterPid, SIGQUIT);
+		elog(ERROR,
+			"Shutting down due to unexpected replication request from node " UINT64_FORMAT,
+			remoteNodeId->sysid);
+	}
+
+	/*
+	 * Perform the same check in the reverse direction: abort if the remote node's insert LSN is
+	 * smaller than the start_lsn we would require from it if we sent a START_REPLICATION command now
+	 */
+	mctx = CurrentMemoryContext;
+	StartTransactionCommand();
+	remote_repident_name = bdr_replident_name(remoteNodeId, MyDatabaseId);
+	remote_replication_identifier = replorigin_by_name(remote_repident_name, true);
+	CommitTransactionCommand();
+	MemoryContextSwitchTo(mctx);
+	if (remote_replication_identifier != InvalidOid)
+		local_start_from = replorigin_get_progress(remote_replication_identifier, false);
+	local_requests_future_lsn = local_start_from != InvalidXLogRecPtr &&
+		remote_insert_lsn != InvalidXLogRecPtr && remote_insert_lsn < local_start_from;
+	if (local_requests_future_lsn)
+	{
+		elog(ERROR,
+			"Node " UINT64_FORMAT
+			" reports an insert LSN smaller than this node's replication resume point! "
+			"Was the remote node reset to an earlier state while the local node was not?",
+			remoteNodeId->sysid);
+	}
+}
+
 
 /* initialize this plugin */
 static void
@@ -370,6 +457,7 @@ pg_decode_startup(LogicalDecodingContext * ctx, OutputPluginOptions *opt, bool i
 	Oid				schema_oid;
 	bool			tx_started = false;
 	Oid				local_dboid;
+	XLogRecPtr	remote_insert_lsn = InvalidXLogRecPtr;
 
 	data = palloc0(sizeof(BdrOutputData));
 	data->context = AllocSetContextCreate(TopMemoryContext,
@@ -479,6 +567,10 @@ pg_decode_startup(LogicalDecodingContext * ctx, OutputPluginOptions *opt, bool i
 			data->client_int_datetime = bdr_get_integer_timestamps();
 			data->client_db_encoding = pstrdup(GetDatabaseEncodingName());
 		}
+		else if (strcmp(elem->defname, "current_lsn") == 0)
+		{
+			bdr_parse_uint64(elem, &remote_insert_lsn);
+		}
 		else
 		{
 			ereport(ERROR,
@@ -488,6 +580,9 @@ pg_decode_startup(LogicalDecodingContext * ctx, OutputPluginOptions *opt, bool i
 							elem->arg ? strVal(elem->arg) : "(null)")));
 		}
 	}
+
+	if (bdr_replication_sanity_checks)
+		startup_sanity_checks(ctx, &data->remote_node, remote_insert_lsn);
 
 	if (!is_init)
 	{

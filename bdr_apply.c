@@ -2909,6 +2909,8 @@ bdr_apply_main(Datum main_arg)
 	appendStringInfo(&query, ", db_encoding '%s'", GetDatabaseEncodingName());
 	if (bdr_apply_worker->forward_changesets)
 		appendStringInfo(&query, ", forward_changesets 't'");
+	/* for sanity checks in output plugin */
+	appendStringInfo(&query, ", current_lsn '" UINT64_FORMAT "'", GetXLogInsertRecPtr());
 
 	appendStringInfoChar(&query, ')');
 
