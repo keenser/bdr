@@ -64,6 +64,12 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 
+#ifndef WIN32
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+#endif
+
 /* Useful for development:
 #define VERBOSE_INSERT
 #define VERBOSE_DELETE
@@ -2762,6 +2768,130 @@ bdr_apply_work(PGconn* streamConn)
 	FreeWaitEventSet(eventSet);
 }
 
+#ifndef WIN32
+
+static bool
+is_local_ip_address(const void *search_addr, sa_family_t protocol)
+{
+	bool found = false;
+	struct ifaddrs	*interface_list_head = NULL, *interface = NULL;
+	struct sockaddr	*sock_addr;
+	void	*in_addr;
+	size_t	addr_size;
+
+	Assert(protocol == AF_INET6 || protocol == AF_INET);
+
+	addr_size = protocol == AF_INET6 ? sizeof(struct in6_addr) : sizeof(struct in_addr);
+	if (getifaddrs(&interface_list_head) || interface_list_head == NULL)
+	{
+		elog(DEBUG1, "Failed to query local network interfaces - skipping IP check");
+		return true;
+	}
+
+	interface = interface_list_head;
+	while (interface != NULL)
+	{
+		sock_addr = interface->ifa_addr;
+		if (sock_addr && protocol == AF_INET && sock_addr->sa_family == protocol)
+			in_addr = &((struct sockaddr_in *) sock_addr)->sin_addr;
+		else if (sock_addr && protocol == AF_INET6 && sock_addr->sa_family == AF_INET6)
+			in_addr = &((struct sockaddr_in6 *) sock_addr)->sin6_addr;
+		else
+			in_addr = NULL;
+		if (in_addr)
+		{
+			if (memcmp(search_addr, in_addr, addr_size) == 0)
+			{
+				elog(DEBUG1,
+					"Found IP address from local node's DSN in interface %s",
+					interface->ifa_name);
+				found = true;
+				break;
+			}
+		}
+		interface = interface->ifa_next;
+	}
+	freeifaddrs(interface_list_head);
+	return found;
+}
+
+/*
+ * Checks whether the IP address configured for this node in bdr_connections is a valid
+ * IP address for a local network interface. Errors out if an IP address for this node is
+ * found in bdr_connections but not found among the local network interfaces. This prevents
+ * copies of this database carelessly started on a different computer from receiving
+ * replication data from other nodes instead of the node under the configured IP address
+ */
+static void
+ensure_local_ip_valid()
+{
+	BdrConnectionConfig	*myconfig = bdr_get_my_connection_config(true);
+	char	*mydsn, *myip = NULL, *err_msg = NULL;
+	PQconninfoOption	*conn_opt, *conn_opts = NULL;
+
+	if (!myconfig)
+	{
+		elog(DEBUG1,
+			"No entry in bdr_connections for local node found - skipping IP check");
+		return;
+	}
+
+	mydsn = myconfig->dsn;
+	conn_opts = PQconninfoParse(mydsn, &err_msg);
+	if (conn_opts == NULL)
+	{
+		elog(DEBUG1,
+			"Could not parse local node's bdr_connections dsn - skipping IP check");
+		bdr_free_connection_config(myconfig);
+		return;
+	}
+
+	for (conn_opt = conn_opts; conn_opt->keyword != NULL; conn_opt++)
+	{
+		if (strcmp(conn_opt->keyword, "host") == 0)
+		{
+			myip = conn_opt->val;
+			break;
+		}
+	}
+
+	if (myip)
+	{
+		bool abort_connection = false;
+		if (strchr(myip, ':'))
+		{
+			/* probably an IPv6 address */
+			struct in6_addr addr;
+			if (inet_pton(AF_INET6, myip, &addr) != 1)
+				elog(DEBUG1,
+					"Local IP %s could not be parsed as an IPv6 address",
+					myip);
+			else if (!is_local_ip_address(&addr, AF_INET6))
+				abort_connection = true;
+		}
+		else
+		{
+			/* assume an IPv4 address by default */
+			struct in_addr addr;
+			if (inet_pton(AF_INET, myip, &addr) != 1)
+				elog(DEBUG1,
+					"Local IP %s could not be parsed as an IPv4 address",
+					myip);
+			else if (!is_local_ip_address(&addr, AF_INET))
+				abort_connection = true;
+		}
+
+		if (abort_connection)
+			elog(ERROR,
+				"This node's DSN specifies an invalid local IP address %s!",
+				myip);
+	}
+
+	PQconninfoFree(conn_opts);
+	bdr_free_connection_config(myconfig);
+}
+#endif
+
 
 /*
  * Entry point for a BDR apply worker.
@@ -2843,6 +2973,11 @@ bdr_apply_main(Datum main_arg)
 
 	CurrentResourceOwner = ResourceOwnerCreate(NULL, "bdr apply top-level resource owner");
 	bdr_saved_resowner = CurrentResourceOwner;
+
+#ifndef WIN32
+	if (bdr_replication_sanity_checks)
+		ensure_local_ip_valid();
+#endif
 
 	/*
 	 * Form an application_name string to send to the remote end. From the
