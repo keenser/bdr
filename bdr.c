@@ -90,7 +90,8 @@ bool bdr_trace_replay;
 int bdr_trace_ddl_locks_level;
 char *bdr_extra_apply_connection_options;
 bool bdr_enabled;
-bool bdr_replication_sanity_checks;
+bool bdr_check_lsn_mismatch;
+bool bdr_check_local_ip;
 
 PG_MODULE_MAGIC;
 
@@ -817,7 +818,7 @@ _PG_init(void)
 
 	DefineCustomIntVariable("bdr.max_ddl_lock_delay",
 							"Sets the maximum delay before canceling queries while waiting for global lock",
-							"If se to -1 max_standby_streaming_delay will be used",
+							"If set to -1 max_standby_streaming_delay will be used",
 							&bdr_max_ddl_lock_delay,
 							-1, -1, INT_MAX,
 							PGC_SIGHUP,
@@ -826,7 +827,7 @@ _PG_init(void)
 
 	DefineCustomIntVariable("bdr.bdr_ddl_lock_timeout",
 							"Sets the maximum allowed duration of any wait for a global lock",
-							"If se to -1 lock_timeout will be used",
+							"If set to -1 lock_timeout will be used",
 							&bdr_ddl_lock_timeout,
 							-1, -1, INT_MAX,
 							PGC_SIGHUP,
@@ -901,10 +902,18 @@ _PG_init(void)
 							   PGC_BACKEND,
 							   0, NULL, NULL, NULL);
 
-	DefineCustomBoolVariable("bdr.replication_sanity_checks",
-							   "Shut down postgres when replication encounters certain unplausible states",
+	DefineCustomBoolVariable("bdr.check_lsn_mismatch",
+							   "Shut down cluster when requested start_lsn is in the future",
 							   NULL,
-							   &bdr_replication_sanity_checks,
+							   &bdr_check_lsn_mismatch,
+							   true,
+							   PGC_SIGHUP,
+							   0, NULL, NULL, NULL);
+
+	DefineCustomBoolVariable("bdr.check_local_ip",
+							   "Stop applying changes if this node's conn_dsn gives wrong IP address",
+							   NULL,
+							   &bdr_check_local_ip,
 							   true,
 							   PGC_SIGHUP,
 							   0, NULL, NULL, NULL);

@@ -2975,7 +2975,7 @@ bdr_apply_main(Datum main_arg)
 	bdr_saved_resowner = CurrentResourceOwner;
 
 #ifndef WIN32
-	if (bdr_replication_sanity_checks)
+	if (bdr_check_local_ip)
 		ensure_local_ip_valid();
 #endif
 

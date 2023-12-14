@@ -386,7 +386,8 @@ extern int bdr_ddl_lock_timeout;
 extern bool bdr_trace_replay;
 extern int bdr_trace_ddl_locks_level;
 extern char *bdr_extra_apply_connection_options;
-extern bool bdr_replication_sanity_checks;
+extern bool bdr_check_lsn_mismatch;
+extern bool bdr_check_local_ip;
 
 static const char * const bdr_default_apply_connection_options =
         "connect_timeout=30 "

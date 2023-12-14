@@ -397,7 +397,7 @@ bdr_ensure_node_ready(BdrOutputData *data)
  * apply worker can reach this node and decide to shut down its cluster.
  */
 static void
-startup_sanity_checks(LogicalDecodingContext * ctx, BDRNodeId *remoteNodeId, XLogRecPtr remote_insert_lsn)
+start_lsn_sanity_check(LogicalDecodingContext * ctx, BDRNodeId *remoteNodeId, XLogRecPtr remote_insert_lsn)
 {
 	bool remote_requests_future_lsn;
 	bool local_requests_future_lsn;
@@ -582,8 +582,8 @@ pg_decode_startup(LogicalDecodingContext * ctx, OutputPluginOptions *opt, bool i
 		}
 	}
 
-	if (bdr_replication_sanity_checks)
-		startup_sanity_checks(ctx, &data->remote_node, remote_insert_lsn);
+	if (bdr_check_lsn_mismatch)
+		start_lsn_sanity_check(ctx, &data->remote_node, remote_insert_lsn);
 
 	if (!is_init)
 	{
