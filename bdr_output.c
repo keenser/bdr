@@ -399,6 +399,7 @@ bdr_ensure_node_ready(BdrOutputData *data)
 static void
 start_lsn_sanity_check(LogicalDecodingContext * ctx, BDRNodeId *remoteNodeId, XLogRecPtr remote_insert_lsn)
 {
+	bool in_transaction;
 	bool remote_requests_future_lsn;
 	bool local_requests_future_lsn;
 	char *remote_repident_name;
@@ -428,12 +429,19 @@ start_lsn_sanity_check(LogicalDecodingContext * ctx, BDRNodeId *remoteNodeId, XL
 	 * Perform the same check in the reverse direction: abort if the remote node's insert LSN is
 	 * smaller than the start_lsn we would require from it if we sent a START_REPLICATION command now
 	 */
-	mctx = CurrentMemoryContext;
-	StartTransactionCommand();
+	in_transaction = IsTransactionState();
+	if (!in_transaction)
+	{
+		mctx = CurrentMemoryContext;
+		StartTransactionCommand();
+	}
 	remote_repident_name = bdr_replident_name(remoteNodeId, MyDatabaseId);
 	remote_replication_identifier = replorigin_by_name(remote_repident_name, true);
-	CommitTransactionCommand();
-	MemoryContextSwitchTo(mctx);
+	if (!in_transaction)
+	{
+		CommitTransactionCommand();
+		MemoryContextSwitchTo(mctx);
+	}
 	if (remote_replication_identifier != InvalidOid)
 		local_start_from = replorigin_get_progress(remote_replication_identifier, false);
 	local_requests_future_lsn = local_start_from != InvalidXLogRecPtr &&
