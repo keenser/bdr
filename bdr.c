@@ -1380,7 +1380,7 @@ bdr_skip_changes_upto(PG_FUNCTION_ARGS)
 			ResetLatch(&MyProc->procLatch);
 		}
 
-#if BDR_VERSION_NUM >= 90600
+#if PG_VERSION_NUM >= 90600
 		/*
 		 * We need a RowExclusiveLock on pg_replication_origin per docs for
 		 * replorigin_advance(...).
@@ -1396,7 +1396,7 @@ bdr_skip_changes_upto(PG_FUNCTION_ARGS)
 		 */
 		replorigin_advance(nodeid, upto_lsn + 1, XactLastCommitEnd, false, true);
 
-#if BDR_VERSION_NUM >= 90600
+#if PG_VERSION_NUM >= 90600
 		UnlockRelationOid(ReplicationOriginRelationId, RowExclusiveLock);
 #endif
 	}
