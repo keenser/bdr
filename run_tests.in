@@ -72,7 +72,7 @@ export PGHOST=$SOCKET
 export PGPORT=$PORT
 
 # create new data directory
-$BINDIR/initdb --nosync tmp_check/data > tmp_check/initdb.log 2>&1
+$BINDIR/initdb -U postgres --nosync tmp_check/data > tmp_check/initdb.log 2>&1
 
 # install trap to shutdown server at failure/exit
 trap "$BINDIR/pg_ctl stop -w -D tmp_check/data" INT QUIT TERM EXIT
