@@ -435,9 +435,6 @@ process_remote_begin(StringInfo s)
  * Process a commit message from the output plugin, advance replication
  * identifiers, commit the local transaction, and determine whether replay
  * should continue.
- *
- * Returns true if apply should continue with the next record, false if replay
- * should stop after this record.
  */
 static void
 process_remote_commit(StringInfo s)
