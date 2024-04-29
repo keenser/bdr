@@ -50,10 +50,10 @@ static void bdr_lookup_origin(RepOriginId origin_id, BdrOriginCacheEntry *entry)
  * re-created.
  */
 static void
-bdrorigincache_invalidation_cb(Datum arg, int cacheid, uint32 origin_id)
- {
+bdrorigincache_invalidation_cb(Datum arg, int cacheid, uint32 hash_value)
+{
+	HASH_SEQ_STATUS status;
 	struct BdrOriginCacheEntry *hentry;
-	RepOriginId origin = (RepOriginId)origin_id;
 
 	Assert (BdrOriginCache != NULL);
 	Assert (cacheid == REPLORIGIDENT);
@@ -63,13 +63,11 @@ bdrorigincache_invalidation_cb(Datum arg, int cacheid, uint32 origin_id)
 	 * arrive while we're in the middle of using one. So we must
 	 * mark it invalid and purge it later.
 	 */
-	hentry = (struct BdrOriginCacheEntry *)
-		hash_search(BdrOriginCache, &origin, HASH_FIND, NULL);
-
-	if (hentry != NULL)
+	hash_seq_init(&status, BdrOriginCache);
+	while ((hentry = (struct BdrOriginCacheEntry *) hash_seq_search(&status)) != NULL)
 	{
-		hentry->is_valid = false;
-		InvalidBdrOriginCacheCnt++;
+	    hentry->is_valid = false;
+	    InvalidBdrOriginCacheCnt++;
 	}
 }
 
@@ -91,7 +89,7 @@ bdrorigincache_init(MemoryContext decoding_context)
 		int hashflags;
 
 		MemSet(&ctl, 0, sizeof(ctl));
-		ctl.keysize = sizeof(Oid);
+		ctl.keysize = sizeof(RepOriginId);
 		ctl.entrysize = sizeof(struct BdrOriginCacheEntry);
 		ctl.hcxt = TopMemoryContext;
 
