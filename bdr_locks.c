@@ -353,9 +353,8 @@ bdr_locks_shmem_startup(void)
 	{
 		memset(bdr_locks_ctl, 0, bdr_locks_shmem_size());
 		bdr_locks_ctl->lock = &(GetNamedLWLockTranche("bdr_locks")->lock);
-		bdr_locks_ctl->dbstate = (BdrLocksDBState *) bdr_locks_ctl + sizeof(BdrLocksCtl);
-		bdr_locks_ctl->waiters = (BDRLockWaiter *) bdr_locks_ctl + sizeof(BdrLocksCtl) +
-			mul_size(sizeof(BdrLocksDBState), bdr_max_databases);
+		bdr_locks_ctl->dbstate = (BdrLocksDBState *) (bdr_locks_ctl + 1);
+		bdr_locks_ctl->waiters = (BDRLockWaiter *) (bdr_locks_ctl->dbstate + bdr_max_databases);
 	}
 	LWLockRelease(AddinShmemInitLock);
 }
