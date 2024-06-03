@@ -2276,10 +2276,14 @@ bdr_locks_check_dml(void)
 		TimestampTz		canceltime;
 
 		/*
-		 * If we add a waiter after the lock is released we may get woken
+		 * If we add a waiter after the ddl lock is released we may get woken
 		 * unnecessarily, but it won't do any harm.
+		 *
+		 * LW lock guards against concurrent waiters list manipulation.
 		 */
+		LWLockAcquire(bdr_locks_ctl->lock, LW_EXCLUSIVE);
 		bdr_locks_addwaiter(MyProc);
+		LWLockRelease(bdr_locks_ctl->lock);
 
 		if (bdr_ddl_lock_timeout > 0 || LockTimeout > 0)
 			canceltime = TimestampTzPlusMilliseconds(GetCurrentTimestamp(),
