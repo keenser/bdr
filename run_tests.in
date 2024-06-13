@@ -84,6 +84,7 @@ $REGRESS_BASE/$TESTBINARY \
     --host $SOCKET \
     --port $PORT \
     --dbname $DBNAME \
+    --user postgres \
     --inputdir=@srcdir@ \
     "$@"
 
