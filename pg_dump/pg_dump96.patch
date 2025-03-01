@@ -1,0 +1,70 @@
+diff '--color=auto' -ruN pg_dump/pg_backup.h /mnt/src/bdr/pg_dump96/pg_backup.h
+--- pg_dump/pg_backup.h	2023-08-04 03:06:28.248658032 +0300
++++ /mnt/src/bdr/pg_dump96/pg_backup.h	2018-04-10 20:25:11.000000000 +0300
+@@ -128,6 +128,7 @@
+ 	bool		oids;
+ 
+ 	int			binary_upgrade;
++	int			bdr_init_node;
+ 
+ 	/* various user-settable parameters */
+ 	bool		schemaOnly;
+diff '--color=auto' -ruN pg_dump/pg_dump.c /mnt/src/bdr/pg_dump96/pg_dump.c
+--- pg_dump/pg_dump.c	2023-08-04 03:06:28.248658032 +0300
++++ /mnt/src/bdr/pg_dump96/pg_dump.c	2018-04-10 20:25:11.000000000 +0300
+@@ -330,6 +330,7 @@
+ 		 */
+ 		{"attribute-inserts", no_argument, &dopt.column_inserts, 1},
+ 		{"binary-upgrade", no_argument, &dopt.binary_upgrade, 1},
++		{"bdr-init-node", no_argument, &dopt.bdr_init_node, 1},
+ 		{"column-inserts", no_argument, &dopt.column_inserts, 1},
+ 		{"disable-dollar-quoting", no_argument, &dopt.disable_dollar_quoting, 1},
+ 		{"disable-triggers", no_argument, &dopt.disable_triggers, 1},
+@@ -8207,7 +8208,7 @@
+ bool
+ shouldPrintColumn(DumpOptions *dopt, TableInfo *tbinfo, int colno)
+ {
+-	if (dopt->binary_upgrade)
++	if (dopt->binary_upgrade || dopt->bdr_init_node)
+ 		return true;
+ 	return (tbinfo->attislocal[colno] && !tbinfo->attisdropped[colno]);
+ }
+@@ -15604,6 +15605,38 @@
+ 			}
+ 		}
+ 
++		/* Some of the binary compatibility is needed for bdr as well. */
++		if (dopt->bdr_init_node && tbinfo->relkind == RELKIND_RELATION)
++		{
++			for (j = 0; j < tbinfo->numatts; j++)
++			{
++				if (tbinfo->attisdropped[j])
++				{
++					appendPQExpBufferStr(q, "\n-- For bdr init, recreate dropped column.\n");
++					appendPQExpBuffer(q, "UPDATE pg_catalog.pg_attribute\n"
++									  "SET attlen = %d, "
++									  "attalign = '%c', attbyval = false\n"
++									  "WHERE attname = ",
++									  tbinfo->attlen[j],
++									  tbinfo->attalign[j]);
++					appendStringLiteralAH(q, tbinfo->attnames[j], fout);
++					appendPQExpBufferStr(q, "\n  AND attrelid = ");
++					appendStringLiteralAH(q, fmtId(tbinfo->dobj.name), fout);
++					appendPQExpBufferStr(q, "::pg_catalog.regclass;\n");
++
++					if (tbinfo->relkind == RELKIND_RELATION)
++						appendPQExpBuffer(q, "ALTER TABLE ONLY %s ",
++										  fmtId(tbinfo->dobj.name));
++					else
++						appendPQExpBuffer(q, "ALTER FOREIGN TABLE %s ",
++										  fmtId(tbinfo->dobj.name));
++
++					appendPQExpBuffer(q, "DROP COLUMN %s;\n",
++									  fmtId(tbinfo->attnames[j]));
++				}
++			}
++		}
++
+ 		/*
+ 		 * In binary_upgrade mode, restore matviews' populated status by
+ 		 * poking pg_class directly.  This is pretty ugly, but we can't use
