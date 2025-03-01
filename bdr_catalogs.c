@@ -371,7 +371,6 @@ bdr_nodes_set_local_attrs(BdrNodeStatus status, BdrNodeStatus oldstatus, const i
 	PopActiveSnapshot();
 	SPI_finish();
 	SPI_pop_conditional(spi_pushed);
-	PopActiveSnapshot();
 	if (tx_started)
 		CommitTransactionCommand();
 }
@@ -674,7 +673,6 @@ bdr_read_connection_configs()
 
 	PopActiveSnapshot();
 	SPI_finish();
-        PopActiveSnapshot();
 
 	MemoryContextSwitchTo(caller_ctx);
 
