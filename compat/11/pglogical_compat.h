@@ -1,0 +1,1 @@
+#define MarkGUCPrefixReserved EmitWarningsOnPlaceholders
