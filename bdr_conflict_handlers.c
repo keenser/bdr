@@ -238,6 +238,7 @@ bdr_create_conflict_handler(PG_FUNCTION_ARGS)
 
 	if (SPI_connect() != SPI_OK_CONNECT)
 		elog(ERROR, "SPI_connect failed");
+	PushActiveSnapshot(GetTransactionSnapshot());
 
 	ret = SPI_execute_with_args(create_handler_sql, 5, argtypes,
 								values, nulls, false, 0);
@@ -293,6 +294,7 @@ bdr_create_conflict_handler(PG_FUNCTION_ARGS)
 			elog(ERROR, "expected one processed row, got "UINT64_FORMAT, (uint64)SPI_processed);
 	}
 
+	PopActiveSnapshot();
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
 
@@ -366,6 +368,7 @@ bdr_drop_conflict_handler(PG_FUNCTION_ARGS)
 
 	if (SPI_connect() != SPI_OK_CONNECT)
 		elog(ERROR, "SPI_connect failed");
+	PushActiveSnapshot(GetTransactionSnapshot());
 
 	/*
 	 * get the bdr.bdr_conflict_handlers row oid to remove the dependency
@@ -423,6 +426,7 @@ bdr_drop_conflict_handler(PG_FUNCTION_ARGS)
 			elog(ERROR, "expected SPI state %u, got %u", SPI_OK_INSERT, ret);
 	}
 
+	PopActiveSnapshot();
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
 
@@ -567,6 +571,7 @@ bdr_get_conflict_handlers(BDRRelation * rel)
 
 		if (SPI_connect() != SPI_OK_CONNECT)
 			elog(ERROR, "SPI_connect failed");
+		PushActiveSnapshot(GetTransactionSnapshot());
 
 		argtypes[0] = OIDOID;
 		nulls[0] = false;
@@ -644,6 +649,7 @@ bdr_get_conflict_handlers(BDRRelation * rel)
 
 		}
 
+		PopActiveSnapshot();
 		if (SPI_finish() != SPI_OK_FINISH)
 			elog(ERROR, "SPI_finish failed");
 	}
