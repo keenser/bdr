@@ -12045,7 +12045,7 @@ dumpFunc(Archive *fout, const FuncInfo *finfo)
 	appendPQExpBuffer(delqry, "DROP %s %s;\n",
 					  keyword, qual_funcsig);
 
-	appendPQExpBuffer(q, "CREATE %s %s.%s",
+	appendPQExpBuffer(q, "CREATE OR REPLACE %s %s.%s",
 					  keyword,
 					  fmtId(finfo->dobj.namespace->dobj.name),
 					  funcfullsig ? funcfullsig :
