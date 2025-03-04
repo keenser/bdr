@@ -107,6 +107,10 @@ bdr_queue_ddl_command(const char *command_tag, const char *command, const char *
 Datum
 bdr_replicate_ddl_command(PG_FUNCTION_ARGS)
 {
+	if (PG_ARGISNULL(0)) {
+		PG_RETURN_VOID();
+	}
+
 	text    *command = PG_GETARG_TEXT_PP(0);
 	char    *query = text_to_cstring(command);
 	int		nestlevel = -1;
